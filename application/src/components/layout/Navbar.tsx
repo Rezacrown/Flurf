@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Droplets, ShieldCheck, Wallet, Sparkles, ExternalLink } from "lucide-react";
+import { ShieldCheck, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFlurfWallet } from "@/hooks/use-flurf-wallet";
 
@@ -17,20 +17,17 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({
   fluid,
-  onOpenFaucet,
   onConnectWallet,
   walletAddress: propWalletAddress,
-  balanceUSDC = 2500,
+  balanceUSDC = 0,
 }) => {
   const pathname = usePathname();
   const isFluid = fluid ?? (pathname === "/app");
   const {
     address: hookAddress,
-    isConnected,
     connect,
     disconnect,
     isConnecting,
-    isDemo,
   } = useFlurfWallet();
 
   const activeAddress = propWalletAddress !== undefined ? propWalletAddress : hookAddress;
@@ -63,7 +60,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </Link>
         </div>
 
-        {/* Center: Wide Horizontal Floating Pill (Slim height, generous horizontal spread) */}
+        {/* Center: Wide Horizontal Floating Pill */}
         <nav className="absolute left-1/2 -translate-x-1/2 hidden sm:flex items-center justify-center bg-white/95 dark:bg-card/95 shadow-sm border border-border/70 rounded-full px-8 sm:px-12 h-11 backdrop-blur-xl w-[460px] sm:w-[540px] md:w-[620px]">
           <ul className="flex items-center justify-between w-full h-full text-xs sm:text-sm font-medium">
             {navLinks.map((item) => (
@@ -99,11 +96,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="ml-1 rounded-full bg-card px-2.5 py-0.5 font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-2xs">
                 ${balanceUSDC.toLocaleString()} tUSDC
               </span>
-              {isDemo && (
-                <span className="rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium font-mono">
-                  Demo
-                </span>
-              )}
               <button
                 type="button"
                 onClick={handleDisconnect}

@@ -1,7 +1,6 @@
 "use server";
 
 import { BinaryMarket } from "@/domain/types";
-import { INITIAL_MARKETS } from "@/domain/mock-live-markets";
 import { DREAMDEX_GRAPHQL_INDEXER } from "@/infrastructure/contract-addresses";
 
 interface IndexerMarketRecord {
@@ -10,36 +9,38 @@ interface IndexerMarketRecord {
   poolAddress: string;
   asset: string;
   question: string;
-  status: string;
+  clobStatus: string;
   expiry: string | number;
   yesTokenId?: string;
   noTokenId?: string;
   lastPrice?: string | number;
+  markPrice?: string | number;
   cumulativeQuoteVolume?: string | number;
   tradeCount?: string | number;
-  createdAtTimestamp?: string | number;
+  winningOutcome?: string;
 }
 
 const LIVE_MARKETS_QUERY = `
   query GetLiveBinaryMarkets {
     Market(
       where: { marketType: { _eq: "BINARY" } }
-      order_by: { createdAtTimestamp: desc }
-      limit: 25
+      order_by: { id: desc }
+      limit: 30
     ) {
       id
       marketType
       poolAddress
       asset
       question
-      status: clobStatus
+      clobStatus
       expiry
       yesTokenId
       noTokenId
       lastPrice
+      markPrice
       cumulativeQuoteVolume
       tradeCount
-      createdAtTimestamp
+      winningOutcome
     }
   }
 `;
@@ -54,7 +55,7 @@ function mapIndexerRecordToBinaryMarket(
       : "BTC"
   ) as "BTC" | "ETH" | "SOL" | "SOMNIA";
 
-  const rawLastPrice = Number(record.lastPrice || 0.5);
+  const rawLastPrice = Number(record.lastPrice || record.markPrice || 0.5);
   const yesProb = Math.max(0.01, Math.min(0.99, rawLastPrice > 1 ? rawLastPrice / 100 : rawLastPrice || 0.5));
   const noProb = Number((1 - yesProb).toFixed(2));
 
@@ -65,7 +66,7 @@ function mapIndexerRecordToBinaryMarket(
     category = "Ecosystem";
   }
 
-  const rawStatus = (record.status || "Trading").toLowerCase();
+  const rawStatus = (record.clobStatus || "Trading").toLowerCase();
   const status: "Trading" | "Resolving" | "Finalized" =
     rawStatus === "trading" || rawStatus === "open"
       ? "Trading"
@@ -77,11 +78,11 @@ function mapIndexerRecordToBinaryMarket(
   const bestAsk = Number(Math.min(0.99, yesProb + 0.01).toFixed(2));
 
   return {
-    id: record.id || `market-${index}`,
-    symbol: `${asset}-EVENT-${record.id.slice(-4)}/USDso#YES`,
+    id: record.id,
+    symbol: `${asset}-EVENT-${record.id.slice(-4)}/tUSDC#YES`,
     poolAddress: (record.poolAddress || "0x0000000000000000000000000000000000000000") as `0x${string}`,
     asset,
-    question: record.question || `Will ${asset} continue upwards?`,
+    question: record.question || `Will ${asset} close at or above target?`,
     category,
     interval: "15m",
     expiryTimestamp: expiry,
@@ -89,37 +90,29 @@ function mapIndexerRecordToBinaryMarket(
     noProbability: noProb,
     bestBid,
     bestAsk,
-    volume24h: Number(record.cumulativeQuoteVolume || 50_000 + index * 12_500),
-    tradeCount: Number(record.tradeCount || 100 + index * 30),
+    volume24h: Number(record.cumulativeQuoteVolume || 0),
+    tradeCount: Number(record.tradeCount || 0),
     status,
+    winningOutcome: record.winningOutcome === "YES" || record.winningOutcome === "NO" ? record.winningOutcome : undefined,
   };
 }
 
 /**
- * Server Action to fetch live markets from the DreamDEX GraphQL Indexer,
- * falling back to verified seed markets if indexer is unreachable.
+ * Server Action to fetch live binary markets from the DreamDEX GraphQL Indexer.
+ * Returns live on-chain indexed data directly.
  */
 export async function getLiveMarketsAction(): Promise<{
   success: boolean;
   data: BinaryMarket[];
-  source: "indexer" | "fallback";
   error?: string;
 }> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
-
     const res = await fetch(DREAMDEX_GRAPHQL_INDEXER, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query: LIVE_MARKETS_QUERY }),
-      signal: controller.signal,
       cache: "no-store",
     });
-
-    clearTimeout(timeoutId);
 
     if (!res.ok) {
       throw new Error(`Indexer responded with status ${res.status}`);
@@ -128,14 +121,6 @@ export async function getLiveMarketsAction(): Promise<{
     const json = await res.json();
     const rawMarkets: IndexerMarketRecord[] = json?.data?.Market || [];
 
-    if (rawMarkets.length === 0) {
-      return {
-        success: true,
-        data: INITIAL_MARKETS,
-        source: "fallback",
-      };
-    }
-
     const mapped = rawMarkets.map((m, idx) =>
       mapIndexerRecordToBinaryMarket(m, idx)
     );
@@ -143,15 +128,12 @@ export async function getLiveMarketsAction(): Promise<{
     return {
       success: true,
       data: mapped,
-      source: "indexer",
     };
   } catch (err: any) {
-    // Graceful fallback to initial seed markets
     return {
-      success: true,
-      data: INITIAL_MARKETS,
-      source: "fallback",
-      error: err?.message,
+      success: false,
+      data: [],
+      error: err?.message || "Failed to fetch markets from indexer",
     };
   }
 }
@@ -162,14 +144,12 @@ export async function getLiveMarketsAction(): Promise<{
 export async function getMarketByIdAction(marketId: string): Promise<{
   success: boolean;
   data: BinaryMarket | null;
-  source: "indexer" | "fallback";
 }> {
-  const allResult = await getLiveMarketsAction();
-  const found = allResult.data.find((m) => m.id.toLowerCase() === marketId.toLowerCase()) || null;
+  const result = await getLiveMarketsAction();
+  const found = result.data.find((m) => m.id.toLowerCase() === marketId.toLowerCase()) || null;
 
   return {
     success: found !== null,
     data: found,
-    source: allResult.source,
   };
 }

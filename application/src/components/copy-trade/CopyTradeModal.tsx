@@ -2,14 +2,16 @@
 
 import React, { useState } from "react";
 import confetti from "canvas-confetti";
+import type { WalletClient } from "viem";
 import { BinaryMarket, MarketOutcome } from "@/domain/types";
 import { calculateSlippageDelta, calculatePotentialProfit } from "@/domain/pnl-calculator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, Sparkles, Copy, Check, ExternalLink, AlertTriangle, Loader2, UserCheck, Link2, Share2 } from "lucide-react";
+import { ShieldCheck, Sparkles, Copy, Check, ExternalLink, Loader2, UserCheck, Link2 } from "lucide-react";
 import { toast } from "sonner";
+import { mintCompleteSets, parseUSDC } from "@/capabilities/dreamdex.service";
 
 export interface CopyIntentData {
   traderAddress: string;
@@ -24,6 +26,7 @@ interface CopyTradeModalProps {
   market: BinaryMarket | null;
   userBalanceUSDC: number;
   walletAddress?: string | null;
+  walletClient?: WalletClient | null;
   initialIntent?: CopyIntentData | null;
   onCopyExecuted?: (order: {
     symbol: string;
@@ -39,6 +42,8 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
   onClose,
   market,
   userBalanceUSDC,
+  walletAddress,
+  walletClient,
   initialIntent,
   onCopyExecuted,
 }) => {
@@ -49,53 +54,52 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
 
   if (!market) return null;
 
-  const traderAddress = initialIntent?.traderAddress || "0x71CB493A270f443b7B912781EbF49A65D3d189A4";
+  const traderAddress = initialIntent?.traderAddress || walletAddress || "0x0000000000000000000000000000000000000000";
   const side: MarketOutcome = initialIntent?.side || "YES";
-  const leaderPrice = initialIntent?.leaderPrice || 0.62;
+  const leaderPrice = initialIntent?.leaderPrice || market.bestAsk || 0.5;
   const currentPrice = side === "YES" ? market.bestAsk : 1 - market.bestBid;
   const { deltaPercent, status } = calculateSlippageDelta(leaderPrice, currentPrice);
 
   const numericAmount = parseFloat(copyAmount) || 0;
-  const { payout, profit, roiPercent } = calculatePotentialProfit(numericAmount, currentPrice);
-
-  const mockTxHash =
-    initialIntent?.txHash || "0xa59c47e099689e4c5bfa88c1c5e2d17482937401948201948271049281749102";
+  const { payout, roiPercent } = calculatePotentialProfit(numericAmount, currentPrice);
 
   const handleExecuteCopy = async () => {
-    setIsCopying(true);
-    await new Promise((r) => setTimeout(r, 1300));
-    const txHash = `0x${Array.from({ length: 64 }, () =>
-      Math.floor(Math.random() * 16).toString(16)
-    ).join("")}` as `0x${string}`;
-
-    setExecutedTx(txHash);
-    setIsCopying(false);
-
-    if (onCopyExecuted) {
-      onCopyExecuted({
-        symbol: market.symbol,
-        outcome: side,
-        price: currentPrice,
-        amount: numericAmount,
-        txHash,
-      });
+    if (!walletClient || !walletAddress) {
+      toast.error("Wallet not connected", { description: "Please connect your wallet to copy this position." });
+      return;
     }
 
     try {
-      confetti({
-        particleCount: 100,
-        spread: 80,
-        origin: { y: 0.6 },
-      });
-    } catch {
-      // ignore
+      setIsCopying(true);
+      const rawAmount = parseUSDC(numericAmount);
+      const txHash = await mintCompleteSets(walletClient, market.poolAddress, rawAmount);
+
+      setExecutedTx(txHash);
+
+      if (onCopyExecuted) {
+        onCopyExecuted({
+          symbol: market.symbol,
+          outcome: side,
+          price: currentPrice,
+          amount: numericAmount,
+          txHash,
+        });
+      }
+
+      try {
+        confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+      } catch {}
+    } catch (err: any) {
+      toast.error("Copy execution failed", { description: err?.shortMessage || err?.message });
+    } finally {
+      setIsCopying(false);
     }
   };
 
   const origin = typeof window !== "undefined" ? window.location.origin : "https://flurf.trade";
   const shareUrl = `${origin}/app?copy=true&marketId=${market.id}&symbol=${encodeURIComponent(
     market.symbol
-  )}&side=${side}&price=${leaderPrice}&trader=${traderAddress}&tx=${mockTxHash}`;
+  )}&side=${side}&price=${leaderPrice}&trader=${traderAddress}&tx=${initialIntent?.txHash || ""}`;
 
   const handleCopyLink = async () => {
     try {
@@ -105,9 +109,7 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
         description: `Invite link for ${side} @ $${leaderPrice.toFixed(2)} is ready to share.`,
       });
       setTimeout(() => setCopiedLink(false), 2500);
-    } catch {
-      // fallback
-    }
+    } catch {}
   };
 
   const handleReset = () => {
@@ -133,7 +135,7 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
             Copy Trader Position
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Review the trader&apos;s verified position and decide whether to copy with automated slippage protection.
+            Review the trader&apos;s position and mirror directly with automated slippage protection on Somnia.
           </DialogDescription>
         </DialogHeader>
 
@@ -177,12 +179,12 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
                       {traderAddress.slice(0, 6)}...{traderAddress.slice(-4)}
                     </span>
                     <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-violet-500/40 text-violet-500">
-                      78% Win Rate
+                      Verified
                     </Badge>
                   </div>
                   <span className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
                     <UserCheck className="size-3 text-emerald-500" />
-                    Verified On-Chain · Somnia Block #120,489
+                    Verified On-Chain · Somnia Shannon
                   </span>
                 </div>
               </div>
@@ -222,19 +224,6 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
                   {copiedLink ? <Check className="size-3 text-emerald-500 mr-1" /> : <Copy className="size-3 mr-1" />}
                   {copiedLink ? "Copied" : "Copy"}
                 </Button>
-                <a
-                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
-                    `Mirror my ${side} prediction on "${market.question}" with 1-click on @Somnia_Network & DreamDEX via @FlurfTrade:\n`
-                  )}&url=${encodeURIComponent(shareUrl)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center justify-center size-8 rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition-colors shrink-0"
-                  title="Share on X / Twitter"
-                >
-                  <svg className="size-3.5 fill-current" viewBox="0 0 24 24">
-                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                  </svg>
-                </a>
               </div>
             </div>
 
@@ -333,13 +322,13 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
             </Button>
             <Button
               onClick={handleExecuteCopy}
-              disabled={isCopying || numericAmount <= 0 || numericAmount > userBalanceUSDC}
+              disabled={isCopying || numericAmount <= 0 || (userBalanceUSDC > 0 && numericAmount > userBalanceUSDC)}
               className="rounded-xl text-xs font-semibold px-6 h-10 bg-violet-600 hover:bg-violet-500 text-white shadow-md shadow-violet-600/20"
             >
               {isCopying ? (
                 <>
                   <Loader2 className="size-3.5 animate-spin mr-1.5" />
-                  Broadcasting to Somnia...
+                  Broadcasting on Somnia...
                 </>
               ) : (
                 `Yes, 1-Click Copy ($${numericAmount})`

@@ -2,18 +2,22 @@
 
 import React, { useState } from "react";
 import confetti from "canvas-confetti";
+import type { WalletClient } from "viem";
 import { BinaryMarket, MarketOutcome } from "@/domain/types";
 import { calculatePotentialProfit } from "@/domain/pnl-calculator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Sparkles, Check, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { Check, ExternalLink, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { mintCompleteSets, burnCompleteSets, parseUSDC } from "@/capabilities/dreamdex.service";
 
 interface OrderEntryPanelProps {
   market: BinaryMarket;
   userBalanceUSDC: number;
   initialPrice?: number;
+  walletClient?: WalletClient | null;
+  walletAddress?: string | null;
   onOrderPlaced: (orderData: {
     symbol: string;
     outcome: MarketOutcome;
@@ -27,6 +31,8 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
   market,
   userBalanceUSDC,
   initialPrice,
+  walletClient,
+  walletAddress,
   onOrderPlaced,
 }) => {
   const [activeTab, setActiveTab] = useState<"trade" | "sets">("trade");
@@ -49,43 +55,67 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
   const { payout, profit, roiPercent } = calculatePotentialProfit(totalCost, numPrice);
 
   const handlePlaceOrder = async () => {
-    setIsSubmitting(true);
-    await new Promise((r) => setTimeout(r, 1200));
-
-    const txHash = `0x${Array.from({ length: 64 }, () =>
-      Math.floor(Math.random() * 16).toString(16)
-    ).join("")}` as `0x${string}`;
-
-    setRecentTx(txHash);
-    setIsSubmitting(false);
-
-    onOrderPlaced({
-      symbol: market.symbol,
-      outcome: side,
-      price: numPrice,
-      amount: totalCost,
-      txHash,
-    });
+    if (!walletClient || !walletAddress) {
+      toast.error("Wallet not connected", { description: "Please connect your wallet to place orders." });
+      return;
+    }
 
     try {
-      confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
-    } catch {
-      // ignore
+      setIsSubmitting(true);
+      // Mint set on-chain for the market pool
+      const rawAmount = parseUSDC(totalCost);
+      const txHash = await mintCompleteSets(walletClient, market.poolAddress, rawAmount);
+
+      setRecentTx(txHash);
+      toast.success(`${side} order confirmed on Somnia!`, {
+        description: `Tx: ${txHash.slice(0, 10)}...${txHash.slice(-6)}`,
+      });
+
+      onOrderPlaced({
+        symbol: market.symbol,
+        outcome: side,
+        price: numPrice,
+        amount: totalCost,
+        txHash,
+      });
+
+      try {
+        confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
+      } catch {}
+    } catch (err: any) {
+      toast.error("Order execution failed", { description: err?.shortMessage || err?.message });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleSetOperation = async () => {
-    setIsSubmitting(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    const txHash = `0x${Array.from({ length: 64 }, () =>
-      Math.floor(Math.random() * 16).toString(16)
-    ).join("")}` as `0x${string}`;
-    setRecentTx(txHash);
-    setIsSubmitting(false);
+    if (!walletClient || !walletAddress) {
+      toast.error("Wallet not connected", { description: "Please connect your wallet first." });
+      return;
+    }
+
     try {
-      confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
-    } catch {
-      // ignore
+      setIsSubmitting(true);
+      const rawAmount = parseUSDC(parseFloat(setAmount) || 1);
+      let txHash: `0x${string}`;
+
+      if (setAction === "mint") {
+        txHash = await mintCompleteSets(walletClient, market.poolAddress, rawAmount);
+        toast.success(`Minted ${setAmount} YES & NO sets on Somnia!`);
+      } else {
+        txHash = await burnCompleteSets(walletClient, market.poolAddress, rawAmount);
+        toast.success(`Burned ${setAmount} sets for tUSDC collateral!`);
+      }
+
+      setRecentTx(txHash);
+      try {
+        confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+      } catch {}
+    } catch (err: any) {
+      toast.error("Set transaction failed", { description: err?.shortMessage || err?.message });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -232,7 +262,7 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
           {/* Submit Action */}
           <Button
             onClick={handlePlaceOrder}
-            disabled={isSubmitting || totalCost <= 0 || totalCost > userBalanceUSDC}
+            disabled={isSubmitting || totalCost <= 0 || (userBalanceUSDC > 0 && totalCost > userBalanceUSDC)}
             className={`w-full rounded-xl text-xs font-semibold h-10 ${
               side === "YES"
                 ? "bg-emerald-600 hover:bg-emerald-500 text-white"
@@ -242,7 +272,7 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
             {isSubmitting ? (
               <>
                 <Loader2 className="size-3.5 animate-spin mr-1.5" />
-                Submitting to Somnia CLOB...
+                Submitting on Somnia...
               </>
             ) : (
               `Place ${side} Order ($${totalCost})`
@@ -256,7 +286,7 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
             <span className="font-semibold text-foreground block mb-1">
               Complete Set Inventory:
             </span>
-            1 tUSDC Collateral ⇄ 1 YES + 1 NO outcome shares. Mint sets to quote both sides with zero inventory, or merge unsold pairs back to collateral.
+            1 tUSDC Collateral ⇄ 1 YES + 1 NO outcome shares. Mint sets to hold outcome shares, or burn pairs back to collateral.
           </div>
 
           <div className="grid grid-cols-2 gap-2">

@@ -2,18 +2,21 @@
 
 import React, { useState } from "react";
 import confetti from "canvas-confetti";
-import { UserPosition, OpenOrder, SettledPosition, BinaryMarket } from "@/domain/types";
+import type { WalletClient } from "viem";
+import { UserPosition, OpenOrder, SettledPosition } from "@/domain/types";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Share2, Sparkles, TrendingUp, X, Check, Droplets, ShieldCheck, ExternalLink, Loader2, Copy } from "lucide-react";
+import { TrendingUp, X, Check, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { redeemSettlement } from "@/capabilities/dreamdex.service";
 
 interface UserPositionsPanelProps {
   positions: UserPosition[];
   openOrders: OpenOrder[];
   settledPositions: SettledPosition[];
   walletAddress?: string | null;
+  walletClient?: WalletClient | null;
   onSharePnl: (position: UserPosition) => void;
   onShareCopy: (position: UserPosition) => void;
   onCancelOrder: (orderId: string) => void;
@@ -25,6 +28,7 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
   openOrders,
   settledPositions,
   walletAddress,
+  walletClient,
   onSharePnl,
   onShareCopy,
   onCancelOrder,
@@ -34,15 +38,27 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
   const [copiedPosId, setCopiedPosId] = useState<string | null>(null);
 
-  const handleRedeem = async (marketId: string) => {
-    setRedeemingId(marketId);
-    await new Promise((r) => setTimeout(r, 1400));
-    onRedeemWinnings(marketId);
-    setRedeemingId(null);
+  const handleRedeem = async (sp: SettledPosition) => {
+    if (!walletClient || !walletAddress) {
+      toast.error("Wallet not connected");
+      return;
+    }
+
     try {
-      confetti({ particleCount: 80, spread: 70, origin: { y: 0.7 } });
-    } catch {
-      // ignore
+      setRedeemingId(sp.marketId);
+      const outcomeId = BigInt(sp.winningOutcome === "YES" ? 1 : 2);
+      const amount = BigInt(Math.floor(sp.shares * 1_000_000));
+      await redeemSettlement(walletClient, outcomeId, amount, walletAddress as `0x${string}`);
+
+      onRedeemWinnings(sp.marketId);
+      toast.success("Settlement redeemed 1:1 on Somnia!");
+      try {
+        confetti({ particleCount: 80, spread: 70, origin: { y: 0.7 } });
+      } catch {}
+    } catch (err: any) {
+      toast.error("Redemption failed", { description: err?.shortMessage || err?.message });
+    } finally {
+      setRedeemingId(null);
     }
   };
 
@@ -50,18 +66,16 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
     const origin = typeof window !== "undefined" ? window.location.origin : "https://flurf.trade";
     const shareUrl = `${origin}/app?copy=true&marketId=${pos.marketId}&symbol=${encodeURIComponent(
       pos.symbol
-    )}&side=${pos.outcome}&price=${pos.avgEntryPrice}&trader=${walletAddress || "0x71CB493A270f443b7B912781EbF49A65D3d189A4"}&tx=${pos.txHash || "0xa59c47e099689e4c5bfa88c1c5e2d17482937401948201948271049281749102"}`;
+    )}&side=${pos.outcome}&price=${pos.avgEntryPrice}&trader=${walletAddress || ""}&tx=${pos.txHash || ""}`;
 
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopiedPosId(pos.id);
       toast.success("Copy Trade Link copied!", {
-        description: `Link for ${pos.outcome} @ $${pos.avgEntryPrice.toFixed(2)} copied. Followers can 1-click mirror with slippage guard.`,
+        description: `Link for ${pos.outcome} @ $${pos.avgEntryPrice.toFixed(2)} copied to clipboard.`,
       });
       setTimeout(() => setCopiedPosId(null), 2500);
-    } catch {
-      // fallback
-    }
+    } catch {}
 
     onShareCopy(pos);
   };
@@ -81,9 +95,6 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
             <TabsTrigger value="redeem" className="rounded-lg text-xs">
               Settled &amp; Redeem ({settledPositions.filter((s) => !s.isRedeemed).length})
             </TabsTrigger>
-            <TabsTrigger value="social" className="rounded-lg text-xs">
-              Live Copy Feed
-            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -91,7 +102,7 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
         <TabsContent value="positions" className="m-0 overflow-x-auto">
           {positions.length === 0 ? (
             <div className="py-8 text-center text-xs text-muted-foreground">
-              No active outcome positions. Place a buy order above to start predicting!
+              No active outcome positions. Place a buy order or mint sets above to open a position!
             </div>
           ) : (
             <table className="w-full text-left text-xs">
@@ -283,7 +294,7 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                       ) : (
                         <Button
                           size="sm"
-                          onClick={() => handleRedeem(sp.marketId)}
+                          onClick={() => handleRedeem(sp)}
                           disabled={redeemingId === sp.marketId}
                           className="rounded-xl text-[10px] h-7 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
                         >
@@ -293,7 +304,7 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                               Redeeming...
                             </>
                           ) : (
-                            "Redeem 1:1 ($200)"
+                            "Redeem 1:1"
                           )}
                         </Button>
                       )}
@@ -303,50 +314,6 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
               </tbody>
             </table>
           )}
-        </TabsContent>
-
-        {/* --- TAB 4: LIVE SOCIAL COPY FEED --- */}
-        <TabsContent value="social" className="m-0 space-y-2">
-          <div className="rounded-xl border border-border/60 bg-secondary/20 p-3 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <div className="size-7 rounded-full bg-gradient-to-tr from-violet-600 to-fuchsia-600 flex items-center justify-center text-white font-bold text-[10px]">
-                FL
-              </div>
-              <div>
-                <span className="font-mono font-bold text-foreground">0x71CB...89A4</span>
-                <span className="ml-2 text-[10px] text-muted-foreground">
-                  Bought 100 YES at $0.62 · Block #120,489
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                Win Rate: 78%
-              </span>
-              <Button
-                size="sm"
-                onClick={() =>
-                  onShareCopy({
-                    id: "feed-1",
-                    marketId: "btc-95k-15m",
-                    symbol: "BTC-0-12AUG26-1600/USDso#YES",
-                    question: "Will Bitcoin close at or above $95,000 this window?",
-                    outcome: "YES",
-                    shares: 100,
-                    avgEntryPrice: 0.62,
-                    currentPrice: 0.68,
-                    investedAmount: 62,
-                    currentValue: 68,
-                    roiPercent: 9.6,
-                  })
-                }
-                className="rounded-xl text-xs h-7 px-3 bg-violet-600 hover:bg-violet-500 text-white font-semibold"
-              >
-                <Sparkles className="size-3 mr-1" />
-                Copy Trade
-              </Button>
-            </div>
-          </div>
         </TabsContent>
       </Tabs>
     </div>

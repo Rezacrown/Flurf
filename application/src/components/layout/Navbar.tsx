@@ -28,7 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   ];
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-background/80 backdrop-blur-md transition-colors py-3 border-b border-border/20">
+    <header className="sticky top-0 z-40 w-full bg-background/85 backdrop-blur-md transition-colors pt-5 pb-4 sm:pt-7 sm:pb-5 border-b border-border/20">
       <div className="relative mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Left: Brand Name */}
         <div className="flex items-center">
@@ -39,23 +39,25 @@ export const Navbar: React.FC<NavbarProps> = ({
           </Link>
         </div>
 
-        {/* Center: Floating Pill Navigation (Generous width, comfortable item spacing) */}
-        <nav className="absolute left-1/2 -translate-x-1/2 hidden sm:flex items-center justify-center bg-white/95 dark:bg-card/95 shadow-md shadow-black/5 border border-border/70 rounded-full px-8 sm:px-10 py-2.5 backdrop-blur-xl min-w-[360px] md:min-w-[420px]">
-          <ul className="flex items-center justify-between w-full gap-8 sm:gap-12 text-sm font-medium">
+        {/* Center: Wide Horizontal Floating Pill (Slim height, generous horizontal spread) */}
+        <nav className="absolute left-1/2 -translate-x-1/2 hidden sm:flex items-center justify-center bg-white/95 dark:bg-card/95 shadow-sm border border-border/70 rounded-full px-8 sm:px-12 h-11 backdrop-blur-xl w-[460px] sm:w-[540px] md:w-[620px]">
+          <ul className="flex items-center justify-between w-full h-full text-xs sm:text-sm font-medium">
             {navLinks.map((item) => (
-              <li key={item.name} className="relative flex-1 text-center">
+              <li key={item.name} className="relative flex-1 text-center h-full">
                 <Link
                   href={item.href}
-                  className={`transition-all py-1 px-4 flex flex-col items-center justify-center ${
+                  className={`transition-all h-full flex flex-col items-center justify-center py-1 group ${
                     item.active
                       ? "text-foreground font-semibold"
                       : "text-muted-foreground hover:text-foreground hover:scale-105"
                   }`}
                 >
-                  <span className="tracking-wide text-sm">{item.name}</span>
-                  {item.active && (
-                    <span className="size-1.5 rounded-full bg-foreground mt-1" />
-                  )}
+                  <span className="tracking-wide">{item.name}</span>
+                  <span
+                    className={`size-1 rounded-full mt-0.5 transition-all ${
+                      item.active ? "bg-foreground" : "bg-transparent"
+                    }`}
+                  />
                 </Link>
               </li>
             ))}
@@ -97,23 +99,25 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Mobile Floating Pill Navigation */}
-      <div className="flex sm:hidden justify-center mt-2.5 px-4">
-        <nav className="flex items-center justify-between w-full max-w-[320px] bg-white/95 dark:bg-card/95 shadow-sm border border-border/70 rounded-full px-6 py-2 backdrop-blur-lg">
-          <ul className="flex items-center justify-between w-full text-xs font-medium">
+      <div className="flex sm:hidden justify-center mt-3 px-4">
+        <nav className="flex items-center justify-between w-full max-w-[340px] bg-white/95 dark:bg-card/95 shadow-sm border border-border/70 rounded-full px-6 h-9 backdrop-blur-lg">
+          <ul className="flex items-center justify-between w-full h-full text-xs font-medium">
             {navLinks.map((item) => (
-              <li key={item.name} className="relative flex-1 text-center">
+              <li key={item.name} className="relative flex-1 text-center h-full">
                 <Link
                   href={item.href}
-                  className={`transition-colors py-0.5 flex flex-col items-center justify-center ${
+                  className={`transition-colors h-full flex flex-col items-center justify-center py-0.5 ${
                     item.active
                       ? "text-foreground font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <span>{item.name}</span>
-                  {item.active && (
-                    <span className="size-1 rounded-full bg-foreground mt-0.5" />
-                  )}
+                  <span
+                    className={`size-1 rounded-full mt-0.5 transition-all ${
+                      item.active ? "bg-foreground" : "bg-transparent"
+                    }`}
+                  />
                 </Link>
               </li>
             ))}

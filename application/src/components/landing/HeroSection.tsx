@@ -44,13 +44,14 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
             {/* CTA Buttons */}
             <div className="mt-8 flex flex-wrap items-center gap-4">
-              <Button
-                size="lg"
-                onClick={onOpenTrade}
-                className="rounded-full px-7 text-sm font-medium shadow-md transition-all hover:scale-[1.02]"
-              >
-                Start Predicting
-              </Button>
+              <a href="/app">
+                <Button
+                  size="lg"
+                  className="rounded-full px-7 text-sm font-medium shadow-md transition-all hover:scale-[1.02] bg-foreground text-background"
+                >
+                  Start Predicting
+                </Button>
+              </a>
               <Button
                 variant="outline"
                 size="lg"

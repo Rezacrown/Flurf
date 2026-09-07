@@ -17,9 +17,37 @@ export interface BinaryMarket {
   tradeCount: number;
   status: "Trading" | "Resolving" | "Finalized";
   winningOutcome?: MarketOutcome;
+  openPrice?: number;
+  targetPrice?: number;
+}
+
+export interface OrderBookLevel {
+  price: number;
+  size: number;
+  total: number;
+}
+
+export interface OrderBookData {
+  bids: OrderBookLevel[];
+  asks: OrderBookLevel[];
+  spread: number;
+  midPrice: number;
+}
+
+export interface OpenOrder {
+  id: string;
+  marketId: string;
+  symbol: string;
+  side: "BUY_YES" | "BUY_NO" | "SELL_YES" | "SELL_NO";
+  orderType: "LIMIT" | "MARKET" | "POST_ONLY";
+  price: number;
+  amount: number;
+  filled: number;
+  placedAt: string;
 }
 
 export interface UserPosition {
+  id: string;
   marketId: string;
   symbol: string;
   question: string;
@@ -31,6 +59,17 @@ export interface UserPosition {
   currentValue: number;
   roiPercent: number;
   txHash?: `0x${string}`;
+}
+
+export interface SettledPosition {
+  marketId: string;
+  symbol: string;
+  question: string;
+  winningOutcome: MarketOutcome;
+  userOutcome: MarketOutcome;
+  shares: number;
+  redeemableUSDC: number;
+  isRedeemed: boolean;
 }
 
 export interface CopyTradeIntent {

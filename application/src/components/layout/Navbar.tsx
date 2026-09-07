@@ -61,38 +61,27 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="text-[10px] text-muted-foreground">#50312</span>
           </div>
 
-          {/* Testnet Faucet Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onOpenFaucet}
-            className="hidden sm:inline-flex rounded-full text-xs font-medium"
-          >
-            <Droplets className="size-3.5 text-blue-500" />
-            Claim tUSDC
-          </Button>
+          {/* Testnet Faucet Link */}
+          <Link href="/faucet">
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden sm:inline-flex rounded-full text-xs font-medium"
+            >
+              <Droplets className="size-3.5 text-blue-500 mr-1" />
+              Faucet
+            </Button>
+          </Link>
 
-          {/* Connect / Wallet Status */}
-          {walletAddress ? (
-            <div className="flex items-center gap-2 rounded-full border border-border bg-secondary/50 px-3 py-1 text-xs">
-              <ShieldCheck className="size-3.5 text-emerald-500" />
-              <span className="font-mono text-foreground font-medium">
-                {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-              </span>
-              <span className="ml-1 rounded-md bg-card px-1.5 py-0.5 font-mono text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                ${balanceUSDC.toLocaleString()} tUSDC
-              </span>
-            </div>
-          ) : (
+          {/* Launch App Button */}
+          <Link href="/app">
             <Button
               size="sm"
-              onClick={onConnectWallet}
-              className="rounded-full px-4 text-xs font-medium shadow-sm"
+              className="rounded-full px-4 text-xs font-semibold shadow-xs bg-foreground text-background hover:opacity-90"
             >
-              <Wallet className="size-3.5" />
-              Connect Wallet
+              Launch App →
             </Button>
-          )}
+          </Link>
         </div>
       </div>
     </header>

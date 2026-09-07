@@ -7,6 +7,7 @@ import { Droplets, ShieldCheck, Wallet, Sparkles, ExternalLink } from "lucide-re
 import { Button } from "@/components/ui/button";
 
 interface NavbarProps {
+  fluid?: boolean;
   onOpenFaucet?: () => void;
   onConnectWallet?: () => void;
   walletAddress?: string | null;
@@ -14,12 +15,14 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
+  fluid,
   onOpenFaucet,
   onConnectWallet,
   walletAddress,
   balanceUSDC = 2500,
 }) => {
   const pathname = usePathname();
+  const isFluid = fluid ?? (pathname === "/app");
 
   const navLinks = [
     { name: "Overview", href: "/", active: pathname === "/" },
@@ -28,8 +31,16 @@ export const Navbar: React.FC<NavbarProps> = ({
   ];
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-background/85 backdrop-blur-md transition-colors pt-5 pb-4 sm:pt-7 sm:pb-5 border-b border-border/20">
-      <div className="relative mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+    <header
+      className={`sticky top-0 z-40 w-full bg-background/85 backdrop-blur-md transition-colors border-b border-border/20 ${
+        isFluid ? "pt-3.5 pb-3 sm:pt-4 sm:pb-3.5" : "pt-5 pb-4 sm:pt-6 sm:pb-4"
+      }`}
+    >
+      <div
+        className={`relative flex items-center justify-between ${
+          isFluid ? "w-full px-4 sm:px-6" : "mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"
+        }`}
+      >
         {/* Left: Brand Name */}
         <div className="flex items-center">
           <Link href="/" className="flex items-center gap-2 group">

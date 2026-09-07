@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import { TerminalHeader } from "@/components/trading-terminal/TerminalHeader";
+import { Navbar } from "@/components/layout/Navbar";
 import { MarketInfoBar } from "@/components/trading-terminal/MarketInfoBar";
 import { MarketsSidebar } from "@/components/trading-terminal/MarketsSidebar";
 import { OrderBookPanel } from "@/components/trading-terminal/OrderBookPanel";
@@ -221,8 +221,8 @@ function TradingTerminalContent() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground antialiased selection:bg-emerald-500/20 selection:text-emerald-600">
-      {/* Terminal Top Navigation Bar */}
-      <TerminalHeader
+      {/* Universal Floating Pill Navbar */}
+      <Navbar
         walletAddress={walletAddress}
         balanceUSDC={balanceUSDC}
         onConnectWallet={() =>
@@ -230,7 +230,7 @@ function TradingTerminalContent() {
             prev ? null : "0x71CB493A270f443b7B912781EbF49A65D3d189A4"
           )
         }
-        onOpenFaucetModal={() => setIsFaucetOpen(true)}
+        onOpenFaucet={() => setIsFaucetOpen(true)}
       />
 
       {/* Copy Trade Alert Banner (Shown when arriving via Copy Link) */}

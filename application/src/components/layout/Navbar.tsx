@@ -2,82 +2,82 @@
 
 import React from "react";
 import Link from "next/link";
-import { Sparkles, Droplets, Wallet, ShieldCheck } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Droplets, ShieldCheck, Wallet, Sparkles, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
 interface NavbarProps {
-  onOpenFaucet: () => void;
-  onConnectWallet: () => void;
-  walletAddress: string | null;
-  balanceUSDC: number;
+  onOpenFaucet?: () => void;
+  onConnectWallet?: () => void;
+  walletAddress?: string | null;
+  balanceUSDC?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   onOpenFaucet,
   onConnectWallet,
   walletAddress,
-  balanceUSDC,
+  balanceUSDC = 2500,
 }) => {
-  return (
-    <header className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/85 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Brand Logo */}
-        <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-foreground text-background shadow-md transition-transform group-hover:scale-105">
-              <span className="font-serif text-lg font-bold">F</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="font-serif text-xl font-medium tracking-tight text-foreground">
-                Flurf
-              </span>
-            </div>
-          </Link>
+  const pathname = usePathname();
 
-          {/* Nav Links */}
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
-            <Link href="#markets" className="transition-colors hover:text-foreground">
-              Markets
-            </Link>
-            <Link href="#copy-trading" className="transition-colors hover:text-foreground">
-              Copy Trading
-            </Link>
-            <Link href="#how-it-works" className="transition-colors hover:text-foreground">
-              How It Works
-            </Link>
-            <span className="inline-flex items-center gap-1 rounded-full bg-secondary/80 px-2.5 py-0.5 text-xs text-secondary-foreground font-normal">
-              DreamDEX CLOB
+  const navLinks = [
+    { name: "Home", href: "/", active: pathname === "/" },
+    { name: "Markets", href: "/#markets", active: false },
+    { name: "Terminal", href: "/app", active: pathname === "/app" },
+    { name: "Faucet", href: "/faucet", active: pathname === "/faucet" },
+    { name: "How It Works", href: "/#how-it-works", active: false },
+  ];
+
+  return (
+    <header className="sticky top-0 z-40 w-full bg-background/80 backdrop-blur-md transition-colors py-3">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        {/* Left: Brand Name (Clean, modern matching the 'Prime' style) */}
+        <div className="flex items-center">
+          <Link href="/" className="flex items-center gap-2 group">
+            <span className="font-serif text-2xl font-bold tracking-tight text-foreground">
+              Flurf
             </span>
-          </nav>
+          </Link>
         </div>
 
-        {/* Right Actions */}
+        {/* Center: Floating Pill Navigation (Exact layout from the reference image) */}
+        <nav className="hidden md:flex items-center bg-white/90 dark:bg-card/90 shadow-sm border border-border/50 rounded-full px-6 py-2 backdrop-blur-lg">
+          <ul className="flex items-center gap-7 text-xs sm:text-sm font-medium">
+            {navLinks.map((item) => (
+              <li key={item.name} className="relative">
+                <Link
+                  href={item.href}
+                  className={`transition-colors py-1 flex flex-col items-center ${
+                    item.active
+                      ? "text-foreground font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <span>{item.name}</span>
+                  {item.active && (
+                    <span className="size-1 rounded-full bg-foreground mt-0.5" />
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        {/* Right: Somnia Network Status & Launch App Button */}
         <div className="flex items-center gap-3">
-          {/* Somnia Network Badge */}
-          <div className="hidden sm:flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-xs text-muted-foreground shadow-xs">
+          {/* Somnia Shannon Network Indicator */}
+          <div className="hidden sm:flex items-center gap-2 rounded-full border border-border/70 bg-secondary/40 px-3 py-1.5 text-xs text-muted-foreground">
             <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="font-medium text-foreground">Somnia Shannon</span>
-            <span className="text-[10px] text-muted-foreground">#50312</span>
+            <span className="font-mono text-[10px] text-muted-foreground">#50312</span>
           </div>
 
-          {/* Testnet Faucet Link */}
-          <Link href="/faucet">
-            <Button
-              variant="outline"
-              size="sm"
-              className="hidden sm:inline-flex rounded-full text-xs font-medium"
-            >
-              <Droplets className="size-3.5 text-blue-500 mr-1" />
-              Faucet
-            </Button>
-          </Link>
-
-          {/* Launch App Button */}
+          {/* Launch App / Connect CTA */}
           <Link href="/app">
             <Button
               size="sm"
-              className="rounded-full px-4 text-xs font-semibold shadow-xs bg-foreground text-background hover:opacity-90"
+              className="rounded-full px-5 text-xs font-semibold shadow-xs bg-foreground text-background hover:opacity-90 h-9"
             >
               Launch App →
             </Button>

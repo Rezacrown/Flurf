@@ -2,19 +2,36 @@
 
 import React, { useState } from "react";
 import confetti from "canvas-confetti";
-import { BinaryMarket } from "@/domain/types";
+import { BinaryMarket, MarketOutcome } from "@/domain/types";
 import { calculateSlippageDelta, calculatePotentialProfit } from "@/domain/pnl-calculator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, Sparkles, Copy, Check, ExternalLink, AlertTriangle, Loader2 } from "lucide-react";
+import { ShieldCheck, Sparkles, Copy, Check, ExternalLink, AlertTriangle, Loader2, UserCheck, Link2, Share2 } from "lucide-react";
+import { toast } from "sonner";
+
+export interface CopyIntentData {
+  traderAddress: string;
+  side: MarketOutcome;
+  leaderPrice: number;
+  txHash: string;
+}
 
 interface CopyTradeModalProps {
   isOpen: boolean;
   onClose: () => void;
   market: BinaryMarket | null;
   userBalanceUSDC: number;
+  walletAddress?: string | null;
+  initialIntent?: CopyIntentData | null;
+  onCopyExecuted?: (order: {
+    symbol: string;
+    outcome: MarketOutcome;
+    price: number;
+    amount: number;
+    txHash: `0x${string}`;
+  }) => void;
 }
 
 export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
@@ -22,6 +39,8 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
   onClose,
   market,
   userBalanceUSDC,
+  initialIntent,
+  onCopyExecuted,
 }) => {
   const [copyAmount, setCopyAmount] = useState<string>("30");
   const [isCopying, setIsCopying] = useState(false);
@@ -30,19 +49,37 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
 
   if (!market) return null;
 
-  const leaderPrice = 0.62;
-  const currentPrice = market.bestAsk;
+  const traderAddress = initialIntent?.traderAddress || "0x71CB493A270f443b7B912781EbF49A65D3d189A4";
+  const side: MarketOutcome = initialIntent?.side || "YES";
+  const leaderPrice = initialIntent?.leaderPrice || 0.62;
+  const currentPrice = side === "YES" ? market.bestAsk : 1 - market.bestBid;
   const { deltaPercent, status } = calculateSlippageDelta(leaderPrice, currentPrice);
+
   const numericAmount = parseFloat(copyAmount) || 0;
   const { payout, profit, roiPercent } = calculatePotentialProfit(numericAmount, currentPrice);
 
-  const mockTxHash = "0xa59c47e099689e4c5bfa88c1c5e2d17482937401948201948271049281749102";
+  const mockTxHash =
+    initialIntent?.txHash || "0xa59c47e099689e4c5bfa88c1c5e2d17482937401948201948271049281749102";
 
   const handleExecuteCopy = async () => {
     setIsCopying(true);
-    await new Promise((r) => setTimeout(r, 1400));
-    setExecutedTx(`0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`);
+    await new Promise((r) => setTimeout(r, 1300));
+    const txHash = `0x${Array.from({ length: 64 }, () =>
+      Math.floor(Math.random() * 16).toString(16)
+    ).join("")}` as `0x${string}`;
+
+    setExecutedTx(txHash);
     setIsCopying(false);
+
+    if (onCopyExecuted) {
+      onCopyExecuted({
+        symbol: market.symbol,
+        outcome: side,
+        price: currentPrice,
+        amount: numericAmount,
+        txHash,
+      });
+    }
 
     try {
       confetti({
@@ -55,11 +92,22 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
     }
   };
 
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://flurf.trade";
+  const shareUrl = `${origin}/app?copy=true&marketId=${market.id}&symbol=${encodeURIComponent(
+    market.symbol
+  )}&side=${side}&price=${leaderPrice}&trader=${traderAddress}&tx=${mockTxHash}`;
+
   const handleCopyLink = async () => {
-    const url = `https://flurf.trade/copy?symbol=${encodeURIComponent(market.symbol)}&trader=0x71CB49...89A4&side=YES&price=${leaderPrice}&tx=${mockTxHash}`;
-    await navigator.clipboard.writeText(url);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2500);
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedLink(true);
+      toast.success("Copy Trade Link copied to clipboard!", {
+        description: `Invite link for ${side} @ $${leaderPrice.toFixed(2)} is ready to share.`,
+      });
+      setTimeout(() => setCopiedLink(false), 2500);
+    } catch {
+      // fallback
+    }
   };
 
   const handleReset = () => {
@@ -69,137 +117,224 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleReset()}>
-      <DialogContent className="sm:max-w-md rounded-2xl p-6 bg-card border-border">
+      <DialogContent className="sm:max-w-lg rounded-3xl p-6 bg-card border-border">
         <DialogHeader>
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <Sparkles className="size-3.5 text-violet-500" />
-              Social Copy Trade
+              1-Click Copy Trading
             </span>
-            <Badge className="text-[10px] px-2 py-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-0">
+            <Badge className="text-[10px] px-2 py-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-0 font-medium">
               <ShieldCheck className="size-3 mr-1" />
               Verified On-Chain
             </Badge>
           </div>
-          <DialogTitle className="font-serif text-xl font-medium text-foreground leading-snug pt-1">
-            Copy Position from Master Trader
+          <DialogTitle className="font-serif text-2xl font-medium text-foreground leading-snug pt-1">
+            Copy Trader Position
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Duplicate verified trader positions on Somnia Shannon with automatic slippage guard.
+            Review the trader&apos;s verified position and decide whether to copy with automated slippage protection.
           </DialogDescription>
         </DialogHeader>
 
         {executedTx ? (
-          <div className="my-4 rounded-xl border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/30 p-5 text-center">
+          <div className="my-4 rounded-2xl border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/30 p-6 text-center">
             <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 mb-3">
               <Check className="size-6" />
             </div>
-            <h4 className="font-serif text-lg font-medium text-foreground">Copy Trade Executed!</h4>
+            <h4 className="font-serif text-xl font-medium text-foreground">
+              Trade Successfully Copied!
+            </h4>
             <p className="mt-1 text-xs text-muted-foreground">
-              You bought {numericAmount} tUSDC of YES shares at ${currentPrice.toFixed(2)}.
+              You mirrored {numericAmount} tUSDC into {side} shares at ${currentPrice.toFixed(2)}.
             </p>
-            <div className="mt-4 flex flex-col items-center gap-2">
+            <div className="mt-5 flex flex-col items-center gap-2.5">
               <a
                 href={`https://shannon-explorer.somnia.network/tx/${executedTx}`}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium hover:underline font-mono"
               >
-                View on Somnia Shannon Explorer
+                View Transaction on Somnia Shannon Explorer
                 <ExternalLink className="size-3" />
               </a>
-              <Button onClick={handleReset} className="mt-2 rounded-xl text-xs w-full">
+              <Button onClick={handleReset} className="mt-2 rounded-xl text-xs w-full h-10 font-semibold">
                 Done
               </Button>
             </div>
           </div>
         ) : (
           <div className="space-y-4 my-2">
-            {/* Trader Profile Card */}
-            <div className="rounded-xl border border-border/70 bg-secondary/40 p-3.5 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="size-8 rounded-full bg-gradient-to-tr from-violet-600 to-fuchsia-600 flex items-center justify-center text-white font-bold text-xs">
+            {/* Master Trader Verification Card */}
+            <div className="rounded-2xl border border-border/70 bg-secondary/30 p-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="size-9 rounded-full bg-gradient-to-tr from-violet-600 to-fuchsia-600 flex items-center justify-center text-white font-bold text-xs shadow-xs">
                   FL
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-xs font-semibold text-foreground">
-                      0x71CB...89A4
+                    <span className="font-mono text-xs font-bold text-foreground">
+                      {traderAddress.slice(0, 6)}...{traderAddress.slice(-4)}
                     </span>
-                    <span className="text-[10px] rounded bg-violet-500/20 px-1 py-0.2 text-violet-400 font-bold">
-                      PRO
-                    </span>
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-violet-500/40 text-violet-500">
+                      78% Win Rate
+                    </Badge>
                   </div>
-                  <span className="text-[11px] text-muted-foreground">
-                    Win Rate: 78% · Total Profit: +$2,450
+                  <span className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                    <UserCheck className="size-3 text-emerald-500" />
+                    Verified On-Chain · Somnia Block #120,489
                   </span>
                 </div>
               </div>
 
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={handleCopyLink}
-                className="rounded-lg text-xs h-7 px-2 text-muted-foreground"
+                className="rounded-xl text-xs h-8 px-3"
               >
                 {copiedLink ? <Check className="size-3 text-emerald-500 mr-1" /> : <Copy className="size-3 mr-1" />}
-                {copiedLink ? "Copied" : "Share"}
+                {copiedLink ? "Link Copied" : "Share Link"}
               </Button>
             </div>
 
-            {/* Trade & Slippage Comparison */}
-            <div className="rounded-xl border border-border/70 bg-card p-3 space-y-2 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Market:</span>
-                <span className="font-medium text-foreground text-right truncate max-w-[200px]">
+            {/* Shareable Link Box */}
+            <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-3 space-y-2">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-semibold text-foreground flex items-center gap-1.5">
+                  <Link2 className="size-3.5 text-violet-500" />
+                  Direct Copy Trading URL
+                </span>
+                <span className="text-[10px] text-muted-foreground">Share with followers</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  readOnly
+                  value={shareUrl}
+                  className="flex-1 bg-background border border-border/70 rounded-xl px-2.5 py-1.5 text-[11px] font-mono text-muted-foreground truncate select-all focus:outline-none"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCopyLink}
+                  className="h-8 text-xs px-3 shrink-0 rounded-xl font-medium"
+                >
+                  {copiedLink ? <Check className="size-3 text-emerald-500 mr-1" /> : <Copy className="size-3 mr-1" />}
+                  {copiedLink ? "Copied" : "Copy"}
+                </Button>
+                <a
+                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
+                    `Mirror my ${side} prediction on "${market.question}" with 1-click on @Somnia_Network & DreamDEX via @FlurfTrade:\n`
+                  )}&url=${encodeURIComponent(shareUrl)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center size-8 rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition-colors shrink-0"
+                  title="Share on X / Twitter"
+                >
+                  <svg className="size-3.5 fill-current" viewBox="0 0 24 24">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                </a>
+              </div>
+            </div>
+
+            {/* Position Details & Slippage Guard Meter */}
+            <div className="rounded-2xl border border-border/70 bg-card p-4 space-y-2.5 text-xs">
+              <div className="flex justify-between items-start">
+                <span className="text-muted-foreground">Event Market:</span>
+                <span className="font-medium text-foreground text-right max-w-[240px] leading-snug">
                   {market.question}
                 </span>
               </div>
+
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Position Copied:</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">BUY YES</span>
+                <span className="text-muted-foreground">Position Side:</span>
+                <Badge
+                  className={`text-[10px] px-2 py-0 border-0 font-bold ${
+                    side === "YES"
+                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                      : "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+                  }`}
+                >
+                  BUY {side}
+                </Badge>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Leader's Fill Price:</span>
-                <span className="font-mono font-medium text-foreground">${leaderPrice.toFixed(2)}</span>
+
+              <div className="flex justify-between items-center font-mono">
+                <span className="text-muted-foreground font-sans">Leader Entry Price:</span>
+                <span className="font-semibold text-foreground">${leaderPrice.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Current Best Ask:</span>
-                <span className="font-mono font-medium text-foreground">${currentPrice.toFixed(2)}</span>
+
+              <div className="flex justify-between items-center font-mono">
+                <span className="text-muted-foreground font-sans">Current Best Ask:</span>
+                <span className="font-semibold text-foreground">${currentPrice.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between items-center pt-1.5 border-t border-border/40">
-                <span className="font-medium text-foreground">Slippage Guard:</span>
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                  +{deltaPercent}% (Safe to Copy)
+
+              <div className="flex justify-between items-center pt-2 border-t border-border/40">
+                <span className="font-medium text-foreground">Slippage Guard Status:</span>
+                <span
+                  className={`font-semibold flex items-center gap-1 ${
+                    status === "Safe"
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : status === "Warning"
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-rose-600 dark:text-rose-400"
+                  }`}
+                >
+                  +{deltaPercent}% ({status} to Copy)
                 </span>
               </div>
             </div>
 
-            {/* Input Amount */}
+            {/* Decision Input: Copy Amount */}
             <div>
               <div className="flex justify-between text-xs mb-1.5">
-                <span className="font-medium text-foreground">Your Copy Amount (tUSDC)</span>
-                <span className="text-muted-foreground">Balance: ${userBalanceUSDC.toLocaleString()}</span>
+                <span className="font-medium text-foreground">How much tUSDC to allocate?</span>
+                <span className="text-muted-foreground font-mono">
+                  Wallet Balance: ${userBalanceUSDC.toLocaleString()}
+                </span>
               </div>
               <Input
                 type="number"
                 value={copyAmount}
                 onChange={(e) => setCopyAmount(e.target.value)}
-                className="font-mono text-base font-semibold"
+                className="font-mono text-base font-semibold h-10"
               />
+
+              {/* Quick Pills */}
+              <div className="mt-2 flex gap-2">
+                {["20", "50", "100", "250"].map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setCopyAmount(amt)}
+                    className="rounded-lg border border-border/70 bg-secondary/40 px-2.5 py-1 text-[11px] font-mono hover:bg-secondary transition-colors"
+                  >
+                    ${amt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Payout Forecast */}
+            <div className="rounded-xl border border-border/60 bg-secondary/20 p-3 text-xs flex items-center justify-between font-mono">
+              <span className="text-muted-foreground font-sans">Potential Return:</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                ${payout} tUSDC (+{roiPercent}%)
+              </span>
             </div>
           </div>
         )}
 
         {!executedTx && (
-          <DialogFooter className="sm:justify-end gap-2">
-            <Button variant="outline" onClick={onClose} className="rounded-xl text-xs">
-              Cancel
+          <DialogFooter className="sm:justify-end gap-2 pt-2 border-t border-border/40">
+            <Button variant="outline" onClick={onClose} className="rounded-xl text-xs h-10 px-4">
+              Decline / Close
             </Button>
             <Button
               onClick={handleExecuteCopy}
-              disabled={isCopying || numericAmount <= 0}
-              className="rounded-xl text-xs font-semibold px-5 bg-violet-600 hover:bg-violet-500 text-white shadow-md shadow-violet-600/20"
+              disabled={isCopying || numericAmount <= 0 || numericAmount > userBalanceUSDC}
+              className="rounded-xl text-xs font-semibold px-6 h-10 bg-violet-600 hover:bg-violet-500 text-white shadow-md shadow-violet-600/20"
             >
               {isCopying ? (
                 <>
@@ -207,7 +342,7 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
                   Broadcasting to Somnia...
                 </>
               ) : (
-                `1-Click Copy ($${numericAmount})`
+                `Yes, 1-Click Copy ($${numericAmount})`
               )}
             </Button>
           </DialogFooter>

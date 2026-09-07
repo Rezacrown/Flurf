@@ -6,12 +6,14 @@ import { UserPosition, OpenOrder, SettledPosition, BinaryMarket } from "@/domain
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Share2, Sparkles, TrendingUp, X, Check, Droplets, ShieldCheck, ExternalLink, Loader2 } from "lucide-react";
+import { Share2, Sparkles, TrendingUp, X, Check, Droplets, ShieldCheck, ExternalLink, Loader2, Copy } from "lucide-react";
+import { toast } from "sonner";
 
 interface UserPositionsPanelProps {
   positions: UserPosition[];
   openOrders: OpenOrder[];
   settledPositions: SettledPosition[];
+  walletAddress?: string | null;
   onSharePnl: (position: UserPosition) => void;
   onShareCopy: (position: UserPosition) => void;
   onCancelOrder: (orderId: string) => void;
@@ -22,6 +24,7 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
   positions,
   openOrders,
   settledPositions,
+  walletAddress,
   onSharePnl,
   onShareCopy,
   onCancelOrder,
@@ -29,6 +32,7 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState("positions");
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
+  const [copiedPosId, setCopiedPosId] = useState<string | null>(null);
 
   const handleRedeem = async (marketId: string) => {
     setRedeemingId(marketId);
@@ -40,6 +44,26 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
     } catch {
       // ignore
     }
+  };
+
+  const handleCopyTradeLink = async (pos: UserPosition) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://flurf.trade";
+    const shareUrl = `${origin}/app?copy=true&marketId=${pos.marketId}&symbol=${encodeURIComponent(
+      pos.symbol
+    )}&side=${pos.outcome}&price=${pos.avgEntryPrice}&trader=${walletAddress || "0x71CB493A270f443b7B912781EbF49A65D3d189A4"}&tx=${pos.txHash || "0xa59c47e099689e4c5bfa88c1c5e2d17482937401948201948271049281749102"}`;
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedPosId(pos.id);
+      toast.success("Copy Trade Link copied!", {
+        description: `Link for ${pos.outcome} @ $${pos.avgEntryPrice.toFixed(2)} copied. Followers can 1-click mirror with slippage guard.`,
+      });
+      setTimeout(() => setCopiedPosId(null), 2500);
+    } catch {
+      // fallback
+    }
+
+    onShareCopy(pos);
   };
 
   return (
@@ -133,11 +157,20 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => onShareCopy(pos)}
-                            className="rounded-lg text-[10px] h-7 px-2.5"
+                            onClick={() => handleCopyTradeLink(pos)}
+                            className="rounded-lg text-[10px] h-7 px-2.5 border-violet-500/30 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 font-medium transition-all"
                           >
-                            <Sparkles className="size-3 mr-1 text-violet-500" />
-                            Copy Link
+                            {copiedPosId === pos.id ? (
+                              <>
+                                <Check className="size-3 mr-1 text-emerald-500" />
+                                Copied Link!
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="size-3 mr-1 text-violet-500" />
+                                Share Copy Link
+                              </>
+                            )}
                           </Button>
                         </div>
                       </td>

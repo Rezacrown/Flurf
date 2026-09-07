@@ -1,14 +1,14 @@
 "use client";
 
-import React from "react";
+import Link from "next/link";
 import { ArrowRight, TrendingUp, Sparkles, ShieldCheck, Zap, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 interface HeroSectionProps {
-  onExploreMarkets: () => void;
-  onOpenTrade: () => void;
-  onOpenCopyTrade: () => void;
+  onExploreMarkets?: () => void;
+  onOpenTrade?: () => void;
+  onOpenCopyTrade?: () => void;
 }
 
 export const HeroSection: React.FC<HeroSectionProps> = ({
@@ -44,22 +44,23 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
             {/* CTA Buttons */}
             <div className="mt-8 flex flex-wrap items-center gap-4">
-              <a href="/app">
+              <Link href="/app">
                 <Button
                   size="lg"
                   className="rounded-full px-7 text-sm font-medium shadow-md transition-all hover:scale-[1.02] bg-foreground text-background"
                 >
-                  Start Predicting
+                  Start Predicting →
                 </Button>
-              </a>
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={onExploreMarkets}
-                className="rounded-full px-6 text-sm font-medium"
-              >
-                Explore Live Markets ↓
-              </Button>
+              </Link>
+              <Link href="/faucet">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="rounded-full px-6 text-sm font-medium"
+                >
+                  Claim Testnet Faucet
+                </Button>
+              </Link>
             </div>
 
             {/* Key Value Prop Badges */}

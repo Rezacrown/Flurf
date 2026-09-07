@@ -22,17 +22,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   const pathname = usePathname();
 
   const navLinks = [
-    { name: "Home", href: "/", active: pathname === "/" },
-    { name: "Markets", href: "/#markets", active: false },
-    { name: "Terminal", href: "/app", active: pathname === "/app" },
+    { name: "Overview", href: "/", active: pathname === "/" },
+    { name: "App", href: "/app", active: pathname === "/app" },
     { name: "Faucet", href: "/faucet", active: pathname === "/faucet" },
-    { name: "How It Works", href: "/#how-it-works", active: false },
   ];
 
   return (
     <header className="sticky top-0 z-40 w-full bg-background/80 backdrop-blur-md transition-colors py-3">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Left: Brand Name (Clean, modern matching the 'Prime' style) */}
+      <div className="relative mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        {/* Left: Brand Name */}
         <div className="flex items-center">
           <Link href="/" className="flex items-center gap-2 group">
             <span className="font-serif text-2xl font-bold tracking-tight text-foreground">
@@ -41,9 +39,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           </Link>
         </div>
 
-        {/* Center: Floating Pill Navigation (Exact layout from the reference image) */}
-        <nav className="hidden md:flex items-center bg-white/90 dark:bg-card/90 shadow-sm border border-border/50 rounded-full px-6 py-2 backdrop-blur-lg">
-          <ul className="flex items-center gap-7 text-xs sm:text-sm font-medium">
+        {/* Center: Floating Pill Navigation (Strictly centered) */}
+        <nav className="absolute left-1/2 -translate-x-1/2 hidden sm:flex items-center bg-white/90 dark:bg-card/90 shadow-sm border border-border/50 rounded-full px-6 py-2 backdrop-blur-lg">
+          <ul className="flex items-center gap-8 text-xs sm:text-sm font-medium">
             {navLinks.map((item) => (
               <li key={item.name} className="relative">
                 <Link
@@ -64,16 +62,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           </ul>
         </nav>
 
-        {/* Right: Somnia Network Status & Launch App Button */}
+        {/* Right: Launch App Button (Badge removed as requested) */}
         <div className="flex items-center gap-3">
-          {/* Somnia Shannon Network Indicator */}
-          <div className="hidden sm:flex items-center gap-2 rounded-full border border-border/70 bg-secondary/40 px-3 py-1.5 text-xs text-muted-foreground">
-            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-medium text-foreground">Somnia Shannon</span>
-            <span className="font-mono text-[10px] text-muted-foreground">#50312</span>
-          </div>
-
-          {/* Launch App / Connect CTA */}
           <Link href="/app">
             <Button
               size="sm"
@@ -83,6 +73,31 @@ export const Navbar: React.FC<NavbarProps> = ({
             </Button>
           </Link>
         </div>
+      </div>
+
+      {/* Mobile Floating Pill Navigation */}
+      <div className="flex sm:hidden justify-center mt-2.5 px-4">
+        <nav className="flex items-center bg-white/90 dark:bg-card/90 shadow-sm border border-border/50 rounded-full px-5 py-1.5 backdrop-blur-lg">
+          <ul className="flex items-center gap-6 text-xs font-medium">
+            {navLinks.map((item) => (
+              <li key={item.name} className="relative">
+                <Link
+                  href={item.href}
+                  className={`transition-colors py-0.5 flex flex-col items-center ${
+                    item.active
+                      ? "text-foreground font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <span>{item.name}</span>
+                  {item.active && (
+                    <span className="size-1 rounded-full bg-foreground mt-0.5" />
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
       </div>
     </header>
   );

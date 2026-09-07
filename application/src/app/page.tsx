@@ -5,7 +5,6 @@ import { Navbar } from "@/components/layout/Navbar";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { PartnerTicker } from "@/components/landing/PartnerTicker";
 import { FeaturesSection } from "@/components/landing/FeaturesSection";
-import { LiveMarketsSection } from "@/components/trading/LiveMarketsSection";
 import { Footer } from "@/components/layout/Footer";
 
 import { TradeModal } from "@/components/trading/TradeModal";
@@ -84,13 +83,6 @@ export default function Home() {
     setBalanceUSDC((prev) => prev + amount);
   };
 
-  const handleScrollToMarkets = () => {
-    const el = document.getElementById("markets");
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth" });
-    }
-  };
-
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground antialiased selection:bg-emerald-500/20 selection:text-emerald-700 dark:selection:text-emerald-300">
       {/* Navbar */}
@@ -104,7 +96,6 @@ export default function Home() {
       <main className="flex-1">
         {/* Hero Section */}
         <HeroSection
-          onExploreMarkets={handleScrollToMarkets}
           onOpenTrade={() => handleOpenTrade(markets[0], "YES")}
           onOpenCopyTrade={() => handleOpenCopyTrade(markets[0])}
         />
@@ -117,14 +108,6 @@ export default function Home() {
           onOpenTrade={() => handleOpenTrade(markets[0], "YES")}
           onOpenCopyTrade={() => handleOpenCopyTrade(markets[0])}
           onOpenPnlModal={() => handleOpenPnl(markets[0])}
-        />
-
-        {/* Live Markets & Order Books Section */}
-        <LiveMarketsSection
-          markets={markets}
-          onSelectMarketForTrade={(m, outcome) => handleOpenTrade(m, outcome)}
-          onSelectMarketForCopy={(m) => handleOpenCopyTrade(m)}
-          onSelectMarketForPnl={(m) => handleOpenPnl(m)}
         />
       </main>
 

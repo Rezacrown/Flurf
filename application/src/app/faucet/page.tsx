@@ -1,42 +1,222 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import confetti from "canvas-confetti";
+import { isAddress, getAddress, createWalletClient, custom } from "viem";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Droplets, Check, ExternalLink, ArrowRight, ShieldCheck, Zap, Copy, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Droplets, Check, ExternalLink, ArrowRight, Zap, Copy, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { DREAMDEX_ADDRESSES } from "@/infrastructure/contract-addresses";
-import { SOMNIA_SHANNON_CHAIN_ID } from "@/infrastructure/chain-config";
+import { somniaShannon, SOMNIA_SHANNON_CHAIN_ID } from "@/infrastructure/chain-config";
+import { claimFaucetAction, getUserUSDCBalanceAction } from "@/actions/faucet.action";
+import { claimTUSDCFaucet, fetchUserUSDCBalance, formatUSDC } from "@/capabilities/dreamdex.service";
+import { useFlurfWallet } from "@/hooks/use-flurf-wallet";
+
+const DEFAULT_DEMO_ADDRESS = "0x71cB493a270f443b7B912781EbF49A65D3d189A4";
 
 export default function FaucetPage() {
-  const [walletAddress, setWalletAddress] = useState<string | null>(
-    "0x71CB493A270f443b7B912781EbF49A65D3d189A4"
-  );
-  const [balanceUSDC, setBalanceUSDC] = useState<number>(2_500);
-  const [isMinting, setIsMinting] = useState(false);
+  const { address: flurfAddress, walletClient: flurfWalletClient, connectInjected } = useFlurfWallet();
+  const [walletAddress, setWalletAddress] = useState<string>(flurfAddress || DEFAULT_DEMO_ADDRESS);
+  const [recipientInput, setRecipientInput] = useState<string>(flurfAddress || DEFAULT_DEMO_ADDRESS);
+  const [balanceUSDC, setBalanceUSDC] = useState<number>(0);
+  const [isLoadingBalance, setIsLoadingBalance] = useState<boolean>(false);
+  const [isMinting, setIsMinting] = useState<boolean>(false);
   const [txHash, setTxHash] = useState<string | null>(null);
-  const [copiedContract, setCopiedContract] = useState(false);
+  const [copiedContract, setCopiedContract] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Read real on-chain balance for the given address
+  const refreshBalance = useCallback(async (targetAddr: string) => {
+    if (!isAddress(targetAddr)) return;
+    setIsLoadingBalance(true);
+    try {
+      const checksummed = getAddress(targetAddr) as `0x${string}`;
+      const rawBal = await fetchUserUSDCBalance(checksummed);
+      setBalanceUSDC(formatUSDC(rawBal));
+    } catch {
+      // Fallback to Server Action if direct RPC client is restricted
+      try {
+        const res = await getUserUSDCBalanceAction(targetAddr);
+        if (res.success && res.balance !== undefined) {
+          setBalanceUSDC(res.balance);
+        }
+      } catch {
+        // Silently keep current balance
+      }
+    } finally {
+      setIsLoadingBalance(false);
+    }
+  }, []);
+
+  // Sync when Flurf Wallet changes
+  useEffect(() => {
+    if (flurfAddress && isAddress(flurfAddress)) {
+      const checksummed = getAddress(flurfAddress);
+      setWalletAddress(checksummed);
+      setRecipientInput(checksummed);
+    }
+  }, [flurfAddress]);
+
+  // Initial balance load on mount
+  useEffect(() => {
+    refreshBalance(walletAddress);
+  }, [walletAddress, refreshBalance]);
+
+  // Connect injected wallet (MetaMask, Rabby, etc.)
+  const handleConnectInjectedWallet = async () => {
+    if (typeof window !== "undefined" && (window as any).ethereum) {
+      try {
+        const ethereum = (window as any).ethereum;
+        const accounts: string[] = await ethereum.request({
+          method: "eth_requestAccounts",
+        });
+        if (accounts && accounts[0]) {
+          const checksummed = getAddress(accounts[0]);
+          setWalletAddress(checksummed);
+          setRecipientInput(checksummed);
+          await refreshBalance(checksummed);
+        }
+      } catch (err: any) {
+        setErrorMessage(err?.message || "Wallet connection declined");
+      }
+    } else {
+      // Toggle demo wallet
+      const nextAddr =
+        walletAddress === DEFAULT_DEMO_ADDRESS
+          ? "0x1234567890123456789012345678901234567890"
+          : DEFAULT_DEMO_ADDRESS;
+      setWalletAddress(nextAddr);
+      setRecipientInput(nextAddr);
+      refreshBalance(nextAddr);
+    }
+  };
 
   const handleClaimUSDC = async () => {
+    setErrorMessage(null);
+    setTxHash(null);
+
+    const targetAddr = recipientInput.trim();
+    if (!isAddress(targetAddr)) {
+      setErrorMessage("Please enter a valid EVM wallet address (0x...)");
+      return;
+    }
+
+    const checksummedTarget = getAddress(targetAddr) as `0x${string}`;
     setIsMinting(true);
-    await new Promise((r) => setTimeout(r, 1400));
-
-    const mockHash = `0x${Array.from({ length: 64 }, () =>
-      Math.floor(Math.random() * 16).toString(16)
-    ).join("")}`;
-
-    setTxHash(mockHash);
-    setBalanceUSDC((prev) => prev + 1000);
-    setIsMinting(false);
 
     try {
-      confetti({ particleCount: 90, spread: 80, origin: { y: 0.6 } });
-    } catch {
-      // ignore
+      // Strategy 0: Direct execution via active Flurf WalletClient
+      if (flurfWalletClient) {
+        const hash = await claimTUSDCFaucet(flurfWalletClient, checksummedTarget, 1000);
+        setTxHash(hash);
+        await refreshBalance(checksummedTarget);
+
+        try {
+          confetti({ particleCount: 90, spread: 80, origin: { y: 0.6 } });
+        } catch {
+          // Non-blocking UI effect
+        }
+        setIsMinting(false);
+        return;
+      }
+
+      // Strategy 1: Direct Injected Wallet execution on Somnia Shannon
+      if (typeof window !== "undefined" && (window as any).ethereum) {
+        const ethereum = (window as any).ethereum;
+        try {
+          const accounts: string[] = await ethereum.request({
+            method: "eth_requestAccounts",
+          });
+
+          if (accounts && accounts[0]) {
+            const activeUser = getAddress(accounts[0]) as `0x${string}`;
+
+            // Switch to Somnia Shannon if on another network
+            try {
+              await ethereum.request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: `0x${somniaShannon.id.toString(16)}` }],
+              });
+            } catch (switchErr: any) {
+              if (switchErr.code === 4902) {
+                await ethereum.request({
+                  method: "wallet_addEthereumChain",
+                  params: [
+                    {
+                      chainId: `0x${somniaShannon.id.toString(16)}`,
+                      chainName: somniaShannon.name,
+                      nativeCurrency: somniaShannon.nativeCurrency,
+                      rpcUrls: somniaShannon.rpcUrls.default.http,
+                      blockExplorerUrls: [somniaShannon.blockExplorers.default.url],
+                    },
+                  ],
+                });
+              }
+            }
+
+            const client = createWalletClient({
+              account: activeUser,
+              chain: somniaShannon,
+              transport: custom(ethereum),
+            });
+
+            const hash = await claimTUSDCFaucet(client, checksummedTarget, 1000);
+            setTxHash(hash);
+            await refreshBalance(checksummedTarget);
+
+            try {
+              confetti({ particleCount: 90, spread: 80, origin: { y: 0.6 } });
+            } catch {
+              // Non-blocking UI effect
+            }
+            setIsMinting(false);
+            return;
+          }
+        } catch (walletErr: any) {
+          // If user rejects in wallet, show error and don't blindly fallback
+          if (walletErr?.code === 4001) {
+            setErrorMessage("Transaction was cancelled in your wallet.");
+            setIsMinting(false);
+            return;
+          }
+          // Otherwise try Server Action execution
+        }
+      }
+
+      // Strategy 2: Server Action execution via Relayer
+      const actionRes = await claimFaucetAction({
+        address: checksummedTarget,
+        amount: 1000,
+      });
+
+      if (actionRes.success && actionRes.txHash) {
+        setTxHash(actionRes.txHash);
+        if (actionRes.newBalance !== undefined) {
+          setBalanceUSDC(actionRes.newBalance);
+        } else {
+          await refreshBalance(checksummedTarget);
+        }
+        try {
+          confetti({ particleCount: 90, spread: 80, origin: { y: 0.6 } });
+        } catch {
+          // Non-blocking
+        }
+      } else if (actionRes.requiresClientSignature) {
+        setErrorMessage(
+          "Please connect MetaMask or a Web3 wallet to sign the Somnia testnet faucet call directly."
+        );
+      } else {
+        setErrorMessage(actionRes.error || "Faucet claim failed. Please try again.");
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || "An unexpected error occurred during minting");
+    } finally {
+      setIsMinting(false);
     }
   };
 
@@ -51,11 +231,7 @@ export default function FaucetPage() {
       {/* Navbar */}
       <Navbar
         onOpenFaucet={() => {}}
-        onConnectWallet={() =>
-          setWalletAddress((prev) =>
-            prev ? null : "0x71CB493A270f443b7B912781EbF49A65D3d189A4"
-          )
-        }
+        onConnectWallet={handleConnectInjectedWallet}
         walletAddress={walletAddress}
         balanceUSDC={balanceUSDC}
       />
@@ -102,12 +278,20 @@ export default function FaucetPage() {
               </CardHeader>
 
               <CardContent className="space-y-4">
-                <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4 space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Your Balance:</span>
-                    <span className="font-mono font-bold text-foreground">
-                      ${balanceUSDC.toLocaleString()} tUSDC
-                    </span>
+                <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4 space-y-2.5 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">On-Chain Balance:</span>
+                    <div className="flex items-center gap-1.5 font-mono font-bold text-foreground">
+                      <span>${balanceUSDC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} tUSDC</span>
+                      <button
+                        type="button"
+                        onClick={() => refreshBalance(recipientInput)}
+                        title="Refresh live on-chain balance"
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <RefreshCw className={`size-3 ${isLoadingBalance ? "animate-spin" : ""}`} />
+                      </button>
+                    </div>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Faucet Allowance:</span>
@@ -129,10 +313,41 @@ export default function FaucetPage() {
                   </div>
                 </div>
 
+                {/* Recipient Address Input */}
+                <div className="space-y-1.5">
+                  <label htmlFor="faucet-recipient" className="text-xs font-medium text-foreground flex justify-between">
+                    <span>Recipient EVM Address</span>
+                    {isAddress(recipientInput) && (
+                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono flex items-center gap-0.5">
+                        <Check className="size-3" /> Valid Somnia Address
+                      </span>
+                    )}
+                  </label>
+                  <Input
+                    id="faucet-recipient"
+                    value={recipientInput}
+                    onChange={(e) => {
+                      setRecipientInput(e.target.value);
+                      if (isAddress(e.target.value.trim())) {
+                        setWalletAddress(e.target.value.trim());
+                      }
+                    }}
+                    placeholder="0x..."
+                    className="font-mono text-xs h-10 rounded-xl"
+                  />
+                </div>
+
+                {errorMessage && (
+                  <div className="rounded-xl border border-rose-500/30 bg-rose-50/50 dark:bg-rose-950/30 p-3 text-xs text-rose-600 dark:text-rose-400 flex items-start gap-2">
+                    <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
+
                 {txHash && (
                   <div className="rounded-xl border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/30 p-3 text-center text-xs">
                     <span className="font-semibold text-emerald-600 dark:text-emerald-400 block">
-                      1,000 tUSDC Minted Successfully!
+                      1,000 tUSDC Minted On-Chain!
                     </span>
                     <a
                       href={`https://shannon-explorer.somnia.network/tx/${txHash}`}
@@ -274,4 +489,4 @@ export default function FaucetPage() {
       <Footer />
     </div>
   );
-};
+}

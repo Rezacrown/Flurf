@@ -2,9 +2,15 @@
 
 import React, { useState } from "react";
 import confetti from "canvas-confetti";
+import { isAddress, getAddress, createWalletClient, custom } from "viem";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Droplets, Check, ExternalLink, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Droplets, Check, ExternalLink, Loader2, AlertCircle } from "lucide-react";
+import { somniaShannon } from "@/infrastructure/chain-config";
+import { claimFaucetAction } from "@/actions/faucet.action";
+import { claimTUSDCFaucet } from "@/capabilities/dreamdex.service";
+import { useFlurfWallet } from "@/hooks/use-flurf-wallet";
 
 interface FaucetModalProps {
   isOpen: boolean;
@@ -13,40 +19,147 @@ interface FaucetModalProps {
   walletAddress: string | null;
 }
 
+const DEFAULT_DEMO_ADDRESS = "0x71cB493a270f443b7B912781EbF49A65D3d189A4";
+
 export const FaucetModal: React.FC<FaucetModalProps> = ({
   isOpen,
   onClose,
   onClaimSuccess,
   walletAddress,
 }) => {
+  const { walletClient: flurfWalletClient } = useFlurfWallet();
   const [isClaiming, setIsClaiming] = useState(false);
   const [claimedTx, setClaimedTx] = useState<string | null>(null);
+  const [recipient, setRecipient] = useState<string>(walletAddress || DEFAULT_DEMO_ADDRESS);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Update recipient when walletAddress prop changes
+  React.useEffect(() => {
+    if (walletAddress && isAddress(walletAddress)) {
+      setRecipient(getAddress(walletAddress));
+    }
+  }, [walletAddress]);
 
   const handleClaim = async () => {
+    setErrorMessage(null);
+    const targetAddr = recipient.trim();
+    if (!isAddress(targetAddr)) {
+      setErrorMessage("Please specify a valid 20-byte EVM address (0x...)");
+      return;
+    }
+
+    const checksummed = getAddress(targetAddr) as `0x${string}`;
     setIsClaiming(true);
-    await new Promise((r) => setTimeout(r, 1200));
-
-    const mockTx = `0x${Array.from({ length: 64 }, () =>
-      Math.floor(Math.random() * 16).toString(16)
-    ).join("")}`;
-
-    setClaimedTx(mockTx);
-    setIsClaiming(false);
-    onClaimSuccess(1000);
 
     try {
-      confetti({
-        particleCount: 60,
-        spread: 60,
-        origin: { y: 0.6 },
+      // 1. Direct execution via Flurf WalletClient (Privy, Injected, or Custom)
+      if (flurfWalletClient) {
+        const txHash = await claimTUSDCFaucet(flurfWalletClient, checksummed, 1000);
+        setClaimedTx(txHash);
+        setIsClaiming(false);
+        onClaimSuccess(1000);
+        try {
+          confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+        } catch {
+          // Ignore
+        }
+        return;
+      }
+
+      // 2. Direct Web3 Injected Wallet execution on Somnia Shannon
+      if (typeof window !== "undefined" && (window as any).ethereum) {
+        const ethereum = (window as any).ethereum;
+        try {
+          const accounts: string[] = await ethereum.request({
+            method: "eth_requestAccounts",
+          });
+
+          if (accounts && accounts[0]) {
+            const activeUser = getAddress(accounts[0]) as `0x${string}`;
+
+            // Ensure connected to Somnia Shannon
+            try {
+              await ethereum.request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: `0x${somniaShannon.id.toString(16)}` }],
+              });
+            } catch (switchErr: any) {
+              if (switchErr.code === 4902) {
+                await ethereum.request({
+                  method: "wallet_addEthereumChain",
+                  params: [
+                    {
+                      chainId: `0x${somniaShannon.id.toString(16)}`,
+                      chainName: somniaShannon.name,
+                      nativeCurrency: somniaShannon.nativeCurrency,
+                      rpcUrls: somniaShannon.rpcUrls.default.http,
+                      blockExplorerUrls: [somniaShannon.blockExplorers.default.url],
+                    },
+                  ],
+                });
+              }
+            }
+
+            const client = createWalletClient({
+              account: activeUser,
+              chain: somniaShannon,
+              transport: custom(ethereum),
+            });
+
+            const txHash = await claimTUSDCFaucet(client, checksummed, 1000);
+            setClaimedTx(txHash);
+            setIsClaiming(false);
+            onClaimSuccess(1000);
+
+            try {
+              confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+            } catch {
+              // Ignore confetti error
+            }
+            return;
+          }
+        } catch (walletErr: any) {
+          if (walletErr?.code === 4001) {
+            setErrorMessage("Transaction was cancelled in your wallet.");
+            setIsClaiming(false);
+            return;
+          }
+        }
+      }
+
+      // 2. Server Action Execution (Relayer fallback)
+      const res = await claimFaucetAction({
+        address: checksummed,
+        amount: 1000,
       });
-    } catch {
-      // ignore
+
+      if (res.success && res.txHash) {
+        setClaimedTx(res.txHash);
+        setIsClaiming(false);
+        onClaimSuccess(1000);
+        try {
+          confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+        } catch {
+          // Ignore
+        }
+      } else if (res.requiresClientSignature) {
+        setErrorMessage(
+          "Please connect your wallet (e.g. MetaMask) to execute the on-chain faucet transaction directly."
+        );
+        setIsClaiming(false);
+      } else {
+        setErrorMessage(res.error || "Faucet claim failed. Please try again.");
+        setIsClaiming(false);
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || "Failed to execute faucet transaction");
+      setIsClaiming(false);
     }
   };
 
   const handleReset = () => {
     setClaimedTx(null);
+    setErrorMessage(null);
     onClose();
   };
 
@@ -62,7 +175,7 @@ export const FaucetModal: React.FC<FaucetModalProps> = ({
             Claim 1,000 tUSDC Collateral
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Mint testnet collateral directly to your connected wallet. No social verification required.
+            Mint testnet collateral directly to your wallet on Somnia Shannon (#50312).
           </DialogDescription>
         </DialogHeader>
 
@@ -73,7 +186,7 @@ export const FaucetModal: React.FC<FaucetModalProps> = ({
             </div>
             <h4 className="font-serif text-lg font-medium text-foreground">1,000 tUSDC Claimed!</h4>
             <p className="mt-1 text-xs text-muted-foreground">
-              Collateral has been credited to {walletAddress ? `${walletAddress.slice(0, 6)}...` : "your wallet"}.
+              Collateral credited to {recipient ? `${recipient.slice(0, 6)}...${recipient.slice(-4)}` : "your wallet"}.
             </p>
             <div className="mt-4 flex flex-col items-center gap-2">
               <a
@@ -108,6 +221,26 @@ export const FaucetModal: React.FC<FaucetModalProps> = ({
                 </span>
               </div>
             </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="faucet-modal-recipient" className="text-xs font-medium text-foreground">
+                Recipient Wallet Address
+              </label>
+              <Input
+                id="faucet-modal-recipient"
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+                placeholder="0x..."
+                className="font-mono text-xs h-9 rounded-xl"
+              />
+            </div>
+
+            {errorMessage && (
+              <div className="rounded-xl border border-rose-500/30 bg-rose-50/50 dark:bg-rose-950/30 p-2.5 text-xs text-rose-600 dark:text-rose-400 flex items-start gap-1.5">
+                <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
 
             <p className="text-muted-foreground text-[11px] leading-relaxed">
               * Testnet tokens have no real monetary value. They are used exclusively to execute

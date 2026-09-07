@@ -14,10 +14,11 @@ import { FaucetModal } from "@/components/trading/FaucetModal";
 
 import { INITIAL_MARKETS } from "@/domain/mock-live-markets";
 import { BinaryMarket, MarketOutcome, PnlShareData } from "@/domain/types";
+import { useFlurfWallet } from "@/hooks/use-flurf-wallet";
 
 export default function Home() {
   const [markets] = useState<BinaryMarket[]>(INITIAL_MARKETS);
-  const [walletAddress, setWalletAddress] = useState<string | null>("0x71CB493A270f443b7B912781EbF49A65D3d189A4");
+  const { address: walletAddress, connect, disconnect } = useFlurfWallet();
   const [balanceUSDC, setBalanceUSDC] = useState<number>(2_500);
 
   // Modal States
@@ -73,9 +74,9 @@ export default function Home() {
 
   const handleConnectWallet = () => {
     if (!walletAddress) {
-      setWalletAddress("0x71CB493A270f443b7B912781EbF49A65D3d189A4");
+      connect();
     } else {
-      setWalletAddress(null);
+      disconnect();
     }
   };
 

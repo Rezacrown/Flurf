@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/layout/Navbar";
+import { useFlurfWallet } from "@/hooks/use-flurf-wallet";
 import { MarketInfoBar } from "@/components/trading-terminal/MarketInfoBar";
 import { MarketsSidebar } from "@/components/trading-terminal/MarketsSidebar";
 import { OrderBookPanel } from "@/components/trading-terminal/OrderBookPanel";
@@ -46,9 +47,15 @@ function TradingTerminalContent() {
 
   const [markets] = useState<BinaryMarket[]>(INITIAL_MARKETS);
   const [selectedMarket, setSelectedMarket] = useState<BinaryMarket>(initialSelectedMarket);
-  const [walletAddress, setWalletAddress] = useState<string | null>(
-    "0x71CB493A270f443b7B912781EbF49A65D3d189A4"
-  );
+  const {
+    address: walletAddress,
+    isConnected,
+    connect,
+    disconnect,
+    walletClient,
+    publicClient,
+    isConnecting,
+  } = useFlurfWallet();
   const [balanceUSDC, setBalanceUSDC] = useState<number>(2_500);
 
   // User State
@@ -226,11 +233,7 @@ function TradingTerminalContent() {
         fluid={true}
         walletAddress={walletAddress}
         balanceUSDC={balanceUSDC}
-        onConnectWallet={() =>
-          setWalletAddress((prev) =>
-            prev ? null : "0x71CB493A270f443b7B912781EbF49A65D3d189A4"
-          )
-        }
+        onConnectWallet={connect}
         onOpenFaucet={() => setIsFaucetOpen(true)}
       />
 

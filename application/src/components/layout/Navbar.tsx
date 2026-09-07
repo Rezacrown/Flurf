@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Droplets, ShieldCheck, Wallet, Sparkles, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useFlurfWallet } from "@/hooks/use-flurf-wallet";
 
 interface NavbarProps {
   fluid?: boolean;
@@ -18,11 +19,23 @@ export const Navbar: React.FC<NavbarProps> = ({
   fluid,
   onOpenFaucet,
   onConnectWallet,
-  walletAddress,
+  walletAddress: propWalletAddress,
   balanceUSDC = 2500,
 }) => {
   const pathname = usePathname();
   const isFluid = fluid ?? (pathname === "/app");
+  const {
+    address: hookAddress,
+    isConnected,
+    connect,
+    disconnect,
+    isConnecting,
+    isDemo,
+  } = useFlurfWallet();
+
+  const activeAddress = propWalletAddress !== undefined ? propWalletAddress : hookAddress;
+  const handleConnect = onConnectWallet || connect;
+  const handleDisconnect = disconnect;
 
   const navLinks = [
     { name: "Overview", href: "/", active: pathname === "/" },
@@ -77,24 +90,38 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right: Adaptive Wallet Connect or Launch App CTA */}
         <div className="flex items-center gap-3">
-          {walletAddress ? (
-            <div className="flex items-center gap-2.5 rounded-full border border-border/80 bg-secondary/50 px-3.5 py-1.5 text-xs shadow-2xs backdrop-blur-sm">
-              <ShieldCheck className="size-3.5 text-emerald-500" />
+          {activeAddress ? (
+            <div className="flex items-center gap-2 rounded-full border border-border/80 bg-secondary/50 px-3 py-1.5 text-xs shadow-2xs backdrop-blur-sm">
+              <ShieldCheck className="size-3.5 text-emerald-500 shrink-0" />
               <span className="font-mono text-foreground font-medium">
-                {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                {activeAddress.slice(0, 6)}...{activeAddress.slice(-4)}
               </span>
               <span className="ml-1 rounded-full bg-card px-2.5 py-0.5 font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-2xs">
                 ${balanceUSDC.toLocaleString()} tUSDC
               </span>
+              {isDemo && (
+                <span className="rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium font-mono">
+                  Demo
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleDisconnect}
+                title="Disconnect Wallet"
+                className="ml-1 text-muted-foreground hover:text-foreground text-[10px] font-medium cursor-pointer transition-colors"
+              >
+                Disconnect
+              </button>
             </div>
           ) : pathname === "/app" ? (
             <Button
               size="sm"
-              onClick={onConnectWallet}
-              className="rounded-full px-5 text-xs font-semibold shadow-xs bg-foreground text-background hover:opacity-90 h-9"
+              onClick={handleConnect}
+              disabled={isConnecting}
+              className="rounded-full px-5 text-xs font-semibold shadow-xs bg-foreground text-background hover:opacity-90 h-9 cursor-pointer"
             >
               <Wallet className="size-3.5 mr-1.5" />
-              Connect Wallet
+              {isConnecting ? "Connecting..." : "Connect Wallet"}
             </Button>
           ) : (
             <Link href="/app">

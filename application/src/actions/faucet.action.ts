@@ -9,8 +9,8 @@ import { DREAMDEX_ADDRESSES } from "@/infrastructure/contract-addresses";
 import {
   fetchUserUSDCBalance,
   claimTUSDCFaucet,
-  formatUSDC,
 } from "@/capabilities/dreamdex.service";
+import { formatUSDC } from "@/domain/units";
 
 const FaucetRequestSchema = z.object({
   address: z

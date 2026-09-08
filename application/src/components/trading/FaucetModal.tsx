@@ -1,16 +1,16 @@
 "use client";
 
-import React, { useState } from "react";
-import confetti from "canvas-confetti";
-import { isAddress, getAddress, createWalletClient, custom } from "viem";
+// 1. Core Framework
+import React, { useState, useEffect } from "react";
+
+// 2. UI Components
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Droplets, Check, ExternalLink, Loader2, AlertCircle } from "lucide-react";
-import { somniaShannon } from "@/infrastructure/chain-config";
-import { claimFaucetAction } from "@/actions/faucet.action";
-import { claimTUSDCFaucet } from "@/capabilities/dreamdex.service";
-import { useFlurfWallet } from "@/hooks/use-flurf-wallet";
+
+// 3. Custom Hooks (Transport Layer)
+import { useFaucetClaim } from "@/hooks/use-faucet-claim";
 
 interface FaucetModalProps {
   isOpen: boolean;
@@ -27,139 +27,29 @@ export const FaucetModal: React.FC<FaucetModalProps> = ({
   onClaimSuccess,
   walletAddress,
 }) => {
-  const { walletClient: flurfWalletClient } = useFlurfWallet();
-  const [isClaiming, setIsClaiming] = useState(false);
-  const [claimedTx, setClaimedTx] = useState<string | null>(null);
-  const [recipient, setRecipient] = useState<string>(walletAddress || DEFAULT_DEMO_ADDRESS);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const {
+    isMinting: isClaiming,
+    txHash: claimedTx,
+    errorMessage,
+    handleClaimUSDC,
+  } = useFaucetClaim();
 
-  // Update recipient when walletAddress prop changes
-  React.useEffect(() => {
-    if (walletAddress && isAddress(walletAddress)) {
-      setRecipient(getAddress(walletAddress));
+  const [recipient, setRecipient] = useState<string>(walletAddress || DEFAULT_DEMO_ADDRESS);
+
+  useEffect(() => {
+    if (walletAddress) {
+      setRecipient(walletAddress);
     }
   }, [walletAddress]);
 
   const handleClaim = async () => {
-    setErrorMessage(null);
-    const targetAddr = recipient.trim();
-    if (!isAddress(targetAddr)) {
-      setErrorMessage("Please specify a valid 20-byte EVM address (0x...)");
-      return;
-    }
-
-    const checksummed = getAddress(targetAddr) as `0x${string}`;
-    setIsClaiming(true);
-
-    try {
-      // 1. Direct execution via Flurf WalletClient (Privy, Injected, or Custom)
-      if (flurfWalletClient) {
-        const txHash = await claimTUSDCFaucet(flurfWalletClient, checksummed, 1000);
-        setClaimedTx(txHash);
-        setIsClaiming(false);
-        onClaimSuccess(1000);
-        try {
-          confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
-        } catch {
-          // Ignore
-        }
-        return;
-      }
-
-      // 2. Direct Web3 Injected Wallet execution on Somnia Shannon
-      if (typeof window !== "undefined" && (window as any).ethereum) {
-        const ethereum = (window as any).ethereum;
-        try {
-          const accounts: string[] = await ethereum.request({
-            method: "eth_requestAccounts",
-          });
-
-          if (accounts && accounts[0]) {
-            const activeUser = getAddress(accounts[0]) as `0x${string}`;
-
-            // Ensure connected to Somnia Shannon
-            try {
-              await ethereum.request({
-                method: "wallet_switchEthereumChain",
-                params: [{ chainId: `0x${somniaShannon.id.toString(16)}` }],
-              });
-            } catch (switchErr: any) {
-              if (switchErr.code === 4902) {
-                await ethereum.request({
-                  method: "wallet_addEthereumChain",
-                  params: [
-                    {
-                      chainId: `0x${somniaShannon.id.toString(16)}`,
-                      chainName: somniaShannon.name,
-                      nativeCurrency: somniaShannon.nativeCurrency,
-                      rpcUrls: somniaShannon.rpcUrls.default.http,
-                      blockExplorerUrls: [somniaShannon.blockExplorers.default.url],
-                    },
-                  ],
-                });
-              }
-            }
-
-            const client = createWalletClient({
-              account: activeUser,
-              chain: somniaShannon,
-              transport: custom(ethereum),
-            });
-
-            const txHash = await claimTUSDCFaucet(client, checksummed, 1000);
-            setClaimedTx(txHash);
-            setIsClaiming(false);
-            onClaimSuccess(1000);
-
-            try {
-              confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
-            } catch {
-              // Ignore confetti error
-            }
-            return;
-          }
-        } catch (walletErr: any) {
-          if (walletErr?.code === 4001) {
-            setErrorMessage("Transaction was cancelled in your wallet.");
-            setIsClaiming(false);
-            return;
-          }
-        }
-      }
-
-      // 2. Server Action Execution (Relayer fallback)
-      const res = await claimFaucetAction({
-        address: checksummed,
-        amount: 1000,
-      });
-
-      if (res.success && res.txHash) {
-        setClaimedTx(res.txHash);
-        setIsClaiming(false);
-        onClaimSuccess(1000);
-        try {
-          confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
-        } catch {
-          // Ignore
-        }
-      } else if (res.requiresClientSignature) {
-        setErrorMessage(
-          "Please connect your wallet (e.g. MetaMask) to execute the on-chain faucet transaction directly."
-        );
-        setIsClaiming(false);
-      } else {
-        setErrorMessage(res.error || "Faucet claim failed. Please try again.");
-        setIsClaiming(false);
-      }
-    } catch (err: any) {
-      setErrorMessage(err?.message || "Failed to execute faucet transaction");
-      setIsClaiming(false);
+    const hash = await handleClaimUSDC(recipient);
+    if (hash) {
+      onClaimSuccess(1000);
     }
   };
 
   const handleReset = () => {
-    setClaimedTx(null);
-    setErrorMessage(null);
     onClose();
   };
 

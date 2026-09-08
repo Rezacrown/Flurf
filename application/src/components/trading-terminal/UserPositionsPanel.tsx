@@ -8,15 +8,12 @@ import confetti from "canvas-confetti";
 import { TrendingUp, X, Check, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
-// 3. Capabilities & Services (Data Layer)
-import { redeemSettlement } from "@/capabilities/dreamdex.service";
-
-// 4. UI Components
+// 3. UI Components
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-// 5. Types
+// 4. Types
 import type { WalletClient } from "viem";
 import type { UserPosition, OpenOrder, SettledPosition } from "@/domain/types";
 
@@ -28,8 +25,8 @@ interface UserPositionsPanelProps {
   walletClient?: WalletClient | null;
   onSharePnl: (position: UserPosition) => void;
   onShareCopy: (position: UserPosition) => void;
-  onCancelOrder: (orderId: string) => void;
-  onRedeemWinnings: (marketId: string) => void;
+  onCancelOrder: (orderId: string) => Promise<boolean | void> | void;
+  onRedeemWinnings: (position: SettledPosition) => Promise<boolean | void> | void;
 }
 
 export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
@@ -48,24 +45,14 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
   const [copiedPosId, setCopiedPosId] = useState<string | null>(null);
 
   const handleRedeem = async (sp: SettledPosition) => {
-    if (!walletClient || !walletAddress) {
+    if (!walletAddress) {
       toast.error("Wallet not connected");
       return;
     }
 
     try {
       setRedeemingId(sp.marketId);
-      const outcomeId = BigInt(sp.winningOutcome === "YES" ? 1 : 2);
-      const amount = BigInt(Math.floor(sp.shares * 1_000_000));
-      await redeemSettlement(walletClient, outcomeId, amount, walletAddress as `0x${string}`);
-
-      onRedeemWinnings(sp.marketId);
-      toast.success("Settlement redeemed 1:1 on Somnia!");
-      try {
-        confetti({ particleCount: 80, spread: 70, origin: { y: 0.7 } });
-      } catch {}
-    } catch (err: any) {
-      toast.error("Redemption failed", { description: err?.shortMessage || err?.message });
+      await onRedeemWinnings(sp);
     } finally {
       setRedeemingId(null);
     }

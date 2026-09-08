@@ -1,10 +1,20 @@
 "use client";
 
+// 1. Core Framework
 import { useState, useEffect } from "react";
+
+// 2. Third-Party Libraries
 import { usePrivy, useWallets, useActiveWallet } from "@privy-io/react-auth";
-import { createWalletClient, custom, getAddress, type WalletClient } from "viem";
+import { createWalletClient, custom, getAddress } from "viem";
+
+// 3. Capabilities & Infrastructure
+import { syncExchangeSigner } from "@/capabilities/dreamdex.service";
 import { somniaShannon } from "@/infrastructure/chain-config";
-import { publicClient, type FlurfPublicClient } from "@/infrastructure/viem-client";
+import { publicClient } from "@/infrastructure/viem-client";
+
+// 4. Types
+import type { WalletClient } from "viem";
+import type { FlurfPublicClient } from "@/infrastructure/viem-client";
 
 export interface FlurfWalletContextValue {
   address: `0x${string}` | null;
@@ -70,6 +80,11 @@ export function useFlurfWallet(): FlurfWalletContextValue {
       isCancelled = true;
     };
   }, [isConnected, activeWallet, address]);
+
+  // Sync active signer with SomniaMarkets SDK singleton
+  useEffect(() => {
+    syncExchangeSigner(walletClient);
+  }, [walletClient]);
 
   return {
     address,

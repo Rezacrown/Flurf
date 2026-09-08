@@ -16,6 +16,7 @@ import { useTerminalMarkets } from "./hooks/use-terminal-markets";
 import { useOrderBookDepth } from "./hooks/use-orderbook-depth";
 import { useCopyTradeIntent } from "./hooks/use-copy-trade-intent";
 import { usePositionsManager } from "./hooks/use-positions-manager";
+import { useTradingActions } from "./hooks/use-trading-actions";
 import { useTerminalModals } from "./hooks/use-terminal-modals";
 
 // 5. UI Components & Layouts (Presentation Layer)
@@ -78,19 +79,34 @@ export function TradingTerminalView() {
     handleRedeemWinnings,
   } = usePositionsManager({
     selectedMarket,
+    walletAddress,
+    walletClient,
     onBalanceRefresh: refetchBalance,
   });
 
-  // 6. Live Order Book Calculation
+  // 6. Action Execution Hook (Transport Layer)
+  const tradingActions = useTradingActions({
+    selectedMarket,
+    walletAddress,
+    walletClient,
+    onBalanceRefresh: () => {
+      refetchBalance();
+    },
+    onOrderPlacedSuccess: handleOrderPlaced,
+    onCopyTradeSuccess: handleCopyExecuted,
+    onRedeemSuccess: handleRedeemWinnings,
+  });
+
+  // 7. Live Order Book Calculation
   const orderBook = useOrderBookDepth(selectedMarket);
 
-  // 7. Modals State Management
+  // 8. Modals State Management
   const modals = useTerminalModals({
     isCopyParamDefault: isCopyParam,
     walletAddress,
   });
 
-  // 8. Terminal Local State
+  // 9. Terminal Local State
   const [selectedPrice, setSelectedPrice] = useState<number | undefined>(undefined);
   const [mobileTab, setMobileTab] = useState<TerminalMobileTab>("trade");
 
@@ -179,8 +195,10 @@ export function TradingTerminalView() {
                     market={selectedMarket}
                     userBalanceUSDC={balanceUSDC}
                     initialPrice={selectedPrice}
-                    walletClient={walletClient}
                     walletAddress={walletAddress}
+                    onPlaceOrder={tradingActions.executePlaceOrder}
+                    onMintSets={tradingActions.executeMintSets}
+                    onBurnSets={tradingActions.executeBurnSets}
                     onOrderPlaced={handleOrderPlaced}
                   />
                 </div>
@@ -198,7 +216,7 @@ export function TradingTerminalView() {
                 onSharePnl={modals.openPnlModal}
                 onShareCopy={modals.openCopyModal}
                 onCancelOrder={handleCancelOrder}
-                onRedeemWinnings={handleRedeemWinnings}
+                onRedeemWinnings={tradingActions.executeRedeem}
               />
             </div>
           </>
@@ -228,6 +246,7 @@ export function TradingTerminalView() {
         isCopyOpen={modals.isCopyOpen}
         onCloseCopy={modals.closeCopyModal}
         copyIntentData={copyIntentData}
+        onExecuteCopy={tradingActions.executeCopyTrade}
         onCopyExecuted={handleCopyExecuted}
         isFaucetOpen={modals.isFaucetOpen}
         onCloseFaucet={() => modals.setIsFaucetOpen(false)}

@@ -1,17 +1,23 @@
 "use client";
 
+// 1. Core Framework
 import React, { useState } from "react";
+
+// 2. Third-Party Libraries
 import confetti from "canvas-confetti";
-import type { WalletClient } from "viem";
-import { BinaryMarket, MarketOutcome } from "@/domain/types";
-import { calculateSlippageDelta, calculatePotentialProfit } from "@/domain/pnl-calculator";
+import { ShieldCheck, Sparkles, Copy, Check, ExternalLink, Loader2, UserCheck, Link2 } from "lucide-react";
+import { toast } from "sonner";
+
+// 3. UI Components
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, Sparkles, Copy, Check, ExternalLink, Loader2, UserCheck, Link2 } from "lucide-react";
-import { toast } from "sonner";
-import { mintCompleteSets, parseUSDC } from "@/capabilities/dreamdex.service";
+
+// 4. Types & Helpers
+import type { WalletClient, Hash } from "viem";
+import type { BinaryMarket, MarketOutcome } from "@/domain/types";
+import { calculateSlippageDelta, calculatePotentialProfit } from "@/domain/pnl-calculator";
 
 export interface CopyIntentData {
   traderAddress: string;
@@ -28,6 +34,12 @@ interface CopyTradeModalProps {
   walletAddress?: string | null;
   walletClient?: WalletClient | null;
   initialIntent?: CopyIntentData | null;
+  onExecuteCopy?: (intent: {
+    side: MarketOutcome;
+    price: number;
+    quantity: number;
+    numericAmount: number;
+  }) => Promise<Hash | null>;
   onCopyExecuted?: (order: {
     symbol: string;
     outcome: MarketOutcome;
@@ -45,6 +57,7 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
   walletAddress,
   walletClient,
   initialIntent,
+  onExecuteCopy,
   onCopyExecuted,
 }) => {
   const [copyAmount, setCopyAmount] = useState<string>("30");
@@ -64,31 +77,40 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
   const { payout, roiPercent } = calculatePotentialProfit(numericAmount, currentPrice);
 
   const handleExecuteCopy = async () => {
-    if (!walletClient || !walletAddress) {
+    if (!walletAddress) {
       toast.error("Wallet not connected", { description: "Please connect your wallet to copy this position." });
       return;
     }
+    if (!onExecuteCopy) return;
 
     try {
       setIsCopying(true);
-      const rawAmount = parseUSDC(numericAmount);
-      const txHash = await mintCompleteSets(walletClient, market.poolAddress, rawAmount);
+      const quantity = Math.max(1, Math.floor(numericAmount / Math.max(0.01, currentPrice)));
 
-      setExecutedTx(txHash);
+      const txHash = await onExecuteCopy({
+        side,
+        price: currentPrice,
+        quantity,
+        numericAmount,
+      });
 
-      if (onCopyExecuted) {
-        onCopyExecuted({
-          symbol: market.symbol,
-          outcome: side,
-          price: currentPrice,
-          amount: numericAmount,
-          txHash,
-        });
+      if (txHash) {
+        setExecutedTx(txHash);
+
+        if (onCopyExecuted) {
+          onCopyExecuted({
+            symbol: market.symbol,
+            outcome: side,
+            price: currentPrice,
+            amount: numericAmount,
+            txHash,
+          });
+        }
+
+        try {
+          confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+        } catch {}
       }
-
-      try {
-        confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
-      } catch {}
     } catch (err: any) {
       toast.error("Copy execution failed", { description: err?.shortMessage || err?.message });
     } finally {

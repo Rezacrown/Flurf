@@ -94,6 +94,8 @@ function mapIndexerRecordToBinaryMarket(
     tradeCount: Number(record.tradeCount || 0),
     status,
     winningOutcome: record.winningOutcome === "YES" || record.winningOutcome === "NO" ? record.winningOutcome : undefined,
+    yesTokenId: record.yesTokenId,
+    noTokenId: record.noTokenId,
   };
 }
 

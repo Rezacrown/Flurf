@@ -1,16 +1,22 @@
 "use client";
 
+// 1. Core Framework
 import React, { useState } from "react";
+
+// 2. Third-Party Libraries
 import confetti from "canvas-confetti";
-import type { WalletClient } from "viem";
-import { BinaryMarket, MarketOutcome } from "@/domain/types";
-import { calculatePotentialProfit } from "@/domain/pnl-calculator";
+import { Check, ExternalLink, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
+// 3. UI Components
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Check, ExternalLink, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { mintCompleteSets, burnCompleteSets, parseUSDC } from "@/capabilities/dreamdex.service";
+
+// 4. Types & Helpers
+import type { WalletClient, Hash } from "viem";
+import type { BinaryMarket, MarketOutcome } from "@/domain/types";
+import { calculatePotentialProfit } from "@/domain/pnl-calculator";
 
 interface OrderEntryPanelProps {
   market: BinaryMarket;
@@ -18,12 +24,21 @@ interface OrderEntryPanelProps {
   initialPrice?: number;
   walletClient?: WalletClient | null;
   walletAddress?: string | null;
-  onOrderPlaced: (orderData: {
+  onPlaceOrder?: (order: {
+    side: MarketOutcome;
+    price: number;
+    quantity: number;
+    orderType?: "LIMIT" | "MARKET" | "POST_ONLY";
+  }) => Promise<{ hash: Hash; orderId?: bigint } | null>;
+  onMintSets?: (amount: number) => Promise<Hash | null>;
+  onBurnSets?: (amount: number) => Promise<Hash | null>;
+  onOrderPlaced?: (orderData: {
     symbol: string;
     outcome: MarketOutcome;
     price: number;
     amount: number;
     txHash: `0x${string}`;
+    orderId?: bigint;
   }) => void;
 }
 
@@ -33,6 +48,9 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
   initialPrice,
   walletClient,
   walletAddress,
+  onPlaceOrder,
+  onMintSets,
+  onBurnSets,
   onOrderPlaced,
 }) => {
   const [activeTab, setActiveTab] = useState<"trade" | "sets">("trade");
@@ -55,65 +73,57 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
   const { payout, profit, roiPercent } = calculatePotentialProfit(totalCost, numPrice);
 
   const handlePlaceOrder = async () => {
-    if (!walletClient || !walletAddress) {
+    if (!walletAddress) {
       toast.error("Wallet not connected", { description: "Please connect your wallet to place orders." });
       return;
     }
+    if (!onPlaceOrder) return;
 
     try {
       setIsSubmitting(true);
-      // Mint set on-chain for the market pool
-      const rawAmount = parseUSDC(totalCost);
-      const txHash = await mintCompleteSets(walletClient, market.poolAddress, rawAmount);
-
-      setRecentTx(txHash);
-      toast.success(`${side} order confirmed on Somnia!`, {
-        description: `Tx: ${txHash.slice(0, 10)}...${txHash.slice(-6)}`,
-      });
-
-      onOrderPlaced({
-        symbol: market.symbol,
-        outcome: side,
+      const res = await onPlaceOrder({
+        side,
         price: numPrice,
-        amount: totalCost,
-        txHash,
+        quantity: numQuantity,
+        orderType,
       });
 
-      try {
-        confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
-      } catch {}
-    } catch (err: any) {
-      toast.error("Order execution failed", { description: err?.shortMessage || err?.message });
+      if (res?.hash) {
+        setRecentTx(res.hash);
+        onOrderPlaced?.({
+          symbol: market.symbol,
+          outcome: side,
+          price: numPrice,
+          amount: totalCost,
+          txHash: res.hash,
+          orderId: res.orderId,
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleSetOperation = async () => {
-    if (!walletClient || !walletAddress) {
+    if (!walletAddress) {
       toast.error("Wallet not connected", { description: "Please connect your wallet first." });
       return;
     }
 
     try {
       setIsSubmitting(true);
-      const rawAmount = parseUSDC(parseFloat(setAmount) || 1);
-      let txHash: `0x${string}`;
+      const numAmount = parseFloat(setAmount) || 1;
+      let txHash: Hash | null = null;
 
       if (setAction === "mint") {
-        txHash = await mintCompleteSets(walletClient, market.poolAddress, rawAmount);
-        toast.success(`Minted ${setAmount} YES & NO sets on Somnia!`);
+        txHash = onMintSets ? await onMintSets(numAmount) : null;
       } else {
-        txHash = await burnCompleteSets(walletClient, market.poolAddress, rawAmount);
-        toast.success(`Burned ${setAmount} sets for tUSDC collateral!`);
+        txHash = onBurnSets ? await onBurnSets(numAmount) : null;
       }
 
-      setRecentTx(txHash);
-      try {
-        confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
-      } catch {}
-    } catch (err: any) {
-      toast.error("Set transaction failed", { description: err?.shortMessage || err?.message });
+      if (txHash) {
+        setRecentTx(txHash);
+      }
     } finally {
       setIsSubmitting(false);
     }

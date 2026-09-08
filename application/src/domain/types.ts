@@ -19,6 +19,8 @@ export interface BinaryMarket {
   winningOutcome?: MarketOutcome;
   openPrice?: number;
   targetPrice?: number;
+  yesTokenId?: string;
+  noTokenId?: string;
 }
 
 export interface OrderBookLevel {
@@ -44,6 +46,7 @@ export interface OpenOrder {
   amount: number;
   filled: number;
   placedAt: string;
+  contractOrderId?: string;
 }
 
 export interface UserPosition {

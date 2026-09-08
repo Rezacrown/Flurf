@@ -1,10 +1,18 @@
 "use client";
 
+// 1. Core Framework
 import React, { useState } from "react";
-import { Copy, Check, LogOut } from "lucide-react";
-import { formatEther } from "viem";
+
+// 2. Third-Party Libraries
 import { useQuery } from "@tanstack/react-query";
+import { formatEther } from "viem";
+import { Copy, Check, LogOut } from "lucide-react";
+import { toast } from "sonner";
+
+// 3. Infrastructure & Clients
 import { publicClient } from "@/infrastructure/viem-client";
+
+// 4. UI Components
 import {
   Dialog,
   DialogContent,
@@ -12,7 +20,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { toast } from "sonner";
 
 interface AccountModalProps {
   isOpen: boolean;

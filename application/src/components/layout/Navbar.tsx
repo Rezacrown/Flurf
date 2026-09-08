@@ -1,10 +1,25 @@
 "use client";
 
+// 1. Core Framework
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Wallet, Menu, X, ArrowUpRight, Droplet, LayoutDashboard, Terminal } from "lucide-react";
+
+// 2. Third-Party Libraries
+import {
+  Wallet,
+  Menu,
+  X,
+  ArrowUpRight,
+  Droplet,
+  LayoutDashboard,
+  Terminal,
+} from "lucide-react";
+
+// 3. Custom Hooks
 import { useFlurfWallet } from "@/hooks/use-flurf-wallet";
+
+// 4. UI Components
 import { AccountModal } from "@/components/layout/AccountModal";
 
 interface NavbarProps {

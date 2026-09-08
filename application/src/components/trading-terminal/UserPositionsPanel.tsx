@@ -1,15 +1,24 @@
 "use client";
 
+// 1. Core Framework
 import React, { useState } from "react";
+
+// 2. Third-Party Libraries
 import confetti from "canvas-confetti";
-import type { WalletClient } from "viem";
-import { UserPosition, OpenOrder, SettledPosition } from "@/domain/types";
+import { TrendingUp, X, Check, Loader2, Sparkles } from "lucide-react";
+import { toast } from "sonner";
+
+// 3. Capabilities & Services (Data Layer)
+import { redeemSettlement } from "@/capabilities/dreamdex.service";
+
+// 4. UI Components
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, X, Check, Loader2, Sparkles } from "lucide-react";
-import { toast } from "sonner";
-import { redeemSettlement } from "@/capabilities/dreamdex.service";
+
+// 5. Types
+import type { WalletClient } from "viem";
+import type { UserPosition, OpenOrder, SettledPosition } from "@/domain/types";
 
 interface UserPositionsPanelProps {
   positions: UserPosition[];

@@ -1,9 +1,16 @@
 "use client";
 
+// 1. Core Framework
 import React, { useEffect, useState } from "react";
-import { BinaryMarket } from "@/domain/types";
+
+// 2. Third-Party Libraries
+import { Clock, ExternalLink, Activity, DollarSign, ChevronDown } from "lucide-react";
+
+// 3. UI Components
 import { Badge } from "@/components/ui/badge";
-import { Clock, ExternalLink, Activity, DollarSign, Layers, ChevronDown } from "lucide-react";
+
+// 4. Types
+import type { BinaryMarket } from "@/domain/types";
 
 interface MarketInfoBarProps {
   market: BinaryMarket;

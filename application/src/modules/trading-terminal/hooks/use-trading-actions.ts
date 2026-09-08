@@ -24,6 +24,7 @@ import type { WalletClient, Hash } from "viem";
 import type { BinaryMarket, MarketOutcome, SettledPosition } from "@/domain/types";
 
 interface UseTradingActionsOptions {
+  markets?: BinaryMarket[];
   selectedMarket: BinaryMarket | null;
   walletAddress?: string | null;
   walletClient?: WalletClient | null;
@@ -47,6 +48,7 @@ interface UseTradingActionsOptions {
 }
 
 export function useTradingActions({
+  markets,
   selectedMarket,
   walletAddress,
   walletClient,
@@ -191,10 +193,11 @@ export function useTradingActions({
     try {
       setIsSubmitting(true);
       const rawAmount = parseUSDC(amount);
+      toast.loading("Processing mint set (please approve in wallet)...", { id: "mint-set" });
       const txHash = await mintCompleteSets(walletClient, selectedMarket.poolAddress, rawAmount);
 
       setRecentTx(txHash);
-      toast.success(`Minted ${amount} YES & NO sets on Somnia!`);
+      toast.success(`Minted ${amount} YES & NO sets on Somnia!`, { id: "mint-set" });
       onBalanceRefresh?.();
 
       try {
@@ -203,7 +206,7 @@ export function useTradingActions({
 
       return txHash;
     } catch (err: any) {
-      toast.error("Mint set failed", { description: err?.shortMessage || err?.message });
+      toast.error("Mint set failed", { id: "mint-set", description: err?.shortMessage || err?.message });
       return null;
     } finally {
       setIsSubmitting(false);
@@ -223,19 +226,16 @@ export function useTradingActions({
     try {
       setIsSubmitting(true);
       const rawAmount = parseUSDC(amount);
+      toast.loading("Processing burn set (please approve in wallet)...", { id: "burn-set" });
       const txHash = await burnCompleteSets(walletClient, selectedMarket.poolAddress, rawAmount);
 
       setRecentTx(txHash);
-      toast.success(`Burned ${amount} sets for tUSDC collateral!`);
+      toast.success(`Burned ${amount} sets back to tUSDC!`, { id: "burn-set" });
       onBalanceRefresh?.();
-
-      try {
-        confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
-      } catch {}
 
       return txHash;
     } catch (err: any) {
-      toast.error("Burn set failed", { description: err?.shortMessage || err?.message });
+      toast.error("Burn set failed", { id: "burn-set", description: err?.shortMessage || err?.message });
       return null;
     } finally {
       setIsSubmitting(false);
@@ -245,15 +245,19 @@ export function useTradingActions({
   /**
    * Cancels a resting limit order on the pool.
    */
-  const executeCancelOrder = async (orderId: string): Promise<boolean> => {
-    if (!selectedMarket?.poolAddress) return false;
+  const executeCancelOrder = async (
+    orderId: string,
+    poolAddressOverride?: `0x${string}` | null
+  ): Promise<boolean> => {
+    const pool = poolAddressOverride || selectedMarket?.poolAddress;
+    if (!pool) return false;
 
     try {
       const isNumeric = /^\d+$/.test(orderId);
       if (isNumeric) {
         toast.loading("Cancelling order on Somnia Shannon...", { id: "cancel-order" });
         const res = await cancelBinaryOrder(
-          selectedMarket.poolAddress,
+          pool,
           BigInt(orderId),
           walletClient
         );

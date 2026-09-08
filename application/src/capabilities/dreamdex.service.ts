@@ -128,11 +128,36 @@ export async function mintCompleteSets(
     });
     return res.hash;
   } catch (err) {
-    // Graceful fallback to direct viem contract call
+    // Graceful fallback to direct viem contract call with allowance check
     const account = walletClient?.account;
     const userAddress: `0x${string}` = typeof account === "string" ? account : account?.address;
     if (isPoolAddress && userAddress) {
       const poolAddr = toChecksumAddress(marketIdOrPool);
+      try {
+        const allowance = (await publicClient.readContract({
+          address: DREAMDEX_ADDRESSES.testnetCollateral,
+          abi: tusdcAbi,
+          functionName: "allowance",
+          args: [toChecksumAddress(userAddress), poolAddr],
+        })) as bigint;
+
+        if (allowance < amount) {
+          const approveHash = await walletClient.writeContract({
+            address: DREAMDEX_ADDRESSES.testnetCollateral,
+            abi: tusdcAbi,
+            functionName: "approve",
+            args: [poolAddr, 2n ** 256n - 1n],
+            account,
+            chain: somniaShannon,
+            gas: 2_500_000n,
+          });
+          // Wait for the approval transaction to confirm on-chain
+          await publicClient.waitForTransactionReceipt({ hash: approveHash });
+        }
+      } catch (allowanceErr) {
+        console.warn("Allowance check/approve failed:", allowanceErr);
+      }
+
       return await walletClient.writeContract({
         address: poolAddr,
         abi: binaryPoolAbi,
@@ -140,6 +165,7 @@ export async function mintCompleteSets(
         args: [toChecksumAddress(userAddress), toChecksumAddress(userAddress), amount],
         account,
         chain: somniaShannon,
+        gas: 2_500_000n,
       });
     }
     throw err;
@@ -166,8 +192,40 @@ export async function burnCompleteSets(
     return res.hash;
   } catch (err) {
     const account = walletClient?.account;
+    const userAddress: `0x${string}` = typeof account === "string" ? account : account?.address;
     if (isPoolAddress && account) {
       const poolAddr = toChecksumAddress(marketIdOrPool);
+      try {
+        // Outcome tokens are ERC-6909 on Somnia, pool must be operator
+        const outcomeToken = (await publicClient.readContract({
+          address: poolAddr,
+          abi: binaryPoolAbi,
+          functionName: "outcomeToken",
+        })) as `0x${string}`;
+
+        const isOperator = (await publicClient.readContract({
+          address: outcomeToken,
+          abi: outcome6909Abi,
+          functionName: "isOperator",
+          args: [toChecksumAddress(userAddress), poolAddr],
+        })) as boolean;
+
+        if (!isOperator) {
+          const opHash = await walletClient.writeContract({
+            address: outcomeToken,
+            abi: outcome6909Abi,
+            functionName: "setOperator",
+            args: [poolAddr, true],
+            account,
+            chain: somniaShannon,
+            gas: 2_500_000n,
+          });
+          await publicClient.waitForTransactionReceipt({ hash: opHash });
+        }
+      } catch (opErr) {
+        console.warn("Operator check/setOperator failed:", opErr);
+      }
+
       return await walletClient.writeContract({
         address: poolAddr,
         abi: binaryPoolAbi,
@@ -175,6 +233,7 @@ export async function burnCompleteSets(
         args: [amount],
         account,
         chain: somniaShannon,
+        gas: 2_500_000n,
       });
     }
     throw err;
@@ -211,6 +270,7 @@ export async function redeemSettlement(
       args: [0, zeroHash, marketIdHex, outcomeIdx, amount],
       account,
       chain: somniaShannon,
+      gas: 2_500_000n,
     });
   }
 }

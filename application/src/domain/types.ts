@@ -47,6 +47,8 @@ export interface OpenOrder {
   filled: number;
   placedAt: string;
   contractOrderId?: string;
+  expiryTimestamp?: number;
+  txHash?: `0x${string}` | string;
 }
 
 export interface UserPosition {
@@ -61,7 +63,10 @@ export interface UserPosition {
   investedAmount: number;
   currentValue: number;
   roiPercent: number;
-  txHash?: `0x${string}`;
+  openedAt?: string;
+  timestamp?: number;
+  expiryTimestamp?: number;
+  txHash?: `0x${string}` | string;
 }
 
 export interface SettledPosition {
@@ -73,6 +78,22 @@ export interface SettledPosition {
   shares: number;
   redeemableUSDC: number;
   isRedeemed: boolean;
+  settledAt?: string;
+  txHash?: `0x${string}` | string;
+}
+
+export interface TradeHistoryItem {
+  id: string;
+  marketId: string;
+  symbol: string;
+  question: string;
+  side: MarketOutcome | "BUY_YES" | "BUY_NO" | "REDEEM" | "MINT" | "BURN" | string;
+  price: number;
+  amount: number; // in tUSDC collateral
+  shares: number;
+  status: "Executed" | "Redeemed" | "Cancelled";
+  timestamp: string;
+  txHash?: `0x${string}` | string;
 }
 
 export interface CopyTradeIntent {

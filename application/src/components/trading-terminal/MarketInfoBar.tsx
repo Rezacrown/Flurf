@@ -23,10 +23,14 @@ export const MarketInfoBar: React.FC<MarketInfoBarProps> = ({ market, onOpenMark
   useEffect(() => {
     const updateCountdown = () => {
       const now = Math.floor(Date.now() / 1000);
-      const diff = Math.max(0, market.expiryTimestamp - now);
-      const mins = Math.floor(diff / 60);
-      const secs = diff % 60;
-      setTimeLeft(`${mins}m ${secs < 10 ? "0" : ""}${secs}s`);
+      const diff = market.expiryTimestamp - now;
+      if (diff <= 0) {
+        setTimeLeft("Expired");
+      } else {
+        const mins = Math.floor(diff / 60);
+        const secs = diff % 60;
+        setTimeLeft(`${mins}m ${secs < 10 ? "0" : ""}${secs}s`);
+      }
     };
 
     updateCountdown();
@@ -98,7 +102,13 @@ export const MarketInfoBar: React.FC<MarketInfoBarProps> = ({ market, onOpenMark
             <Clock className="size-3.5 text-amber-500 shrink-0" />
             <div className="min-w-0">
               <span className="text-[9px] sm:text-[10px] text-muted-foreground block leading-none truncate">Expiry</span>
-              <span className="font-mono font-bold text-foreground text-[11px] sm:text-xs truncate block">{timeLeft}</span>
+              <span
+                className={`font-mono font-bold text-[11px] sm:text-xs truncate block ${
+                  timeLeft === "Expired" ? "text-rose-600 dark:text-rose-400" : "text-foreground"
+                }`}
+              >
+                {timeLeft}
+              </span>
             </div>
           </div>
 

@@ -17,7 +17,12 @@ import { Badge } from "@/components/ui/badge";
 // 4. Types & Helpers
 import type { WalletClient, Hash } from "viem";
 import type { BinaryMarket, MarketOutcome } from "@/domain/types";
-import { calculateSlippageDelta, calculatePotentialProfit } from "@/domain/pnl-calculator";
+import {
+  calculateSlippageDelta,
+  calculatePotentialProfit,
+  clampProbabilityPrice,
+  formatReturnString,
+} from "@/domain/pnl-calculator";
 
 export interface CopyIntentData {
   traderAddress: string;
@@ -67,18 +72,32 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
 
   if (!market) return null;
 
+  const nowSec = Math.floor(Date.now() / 1000);
+  const isMarketExpired = Boolean(
+    (market.expiryTimestamp && market.expiryTimestamp <= nowSec) ||
+    market.status === "Resolving" ||
+    market.status === "Finalized"
+  );
+
   const traderAddress = initialIntent?.traderAddress || walletAddress || "0x0000000000000000000000000000000000000000";
   const side: MarketOutcome = initialIntent?.side || "YES";
   const leaderPrice = initialIntent?.leaderPrice || market.bestAsk || 0.5;
-  const currentPrice = side === "YES" ? market.bestAsk : 1 - market.bestBid;
+  const currentPrice = clampProbabilityPrice(
+    side === "YES" ? market.bestAsk : 1 - (market.bestBid > 0 ? market.bestBid : 0.5)
+  );
   const { deltaPercent, status } = calculateSlippageDelta(leaderPrice, currentPrice);
 
   const numericAmount = parseFloat(copyAmount) || 0;
-  const { payout, roiPercent } = calculatePotentialProfit(numericAmount, currentPrice);
+  const { payout, profit, roiPercent } = calculatePotentialProfit(numericAmount, currentPrice);
+  const returnInfo = formatReturnString(profit, roiPercent);
 
   const handleExecuteCopy = async () => {
     if (!walletAddress) {
       toast.error("Wallet not connected", { description: "Please connect your wallet to copy this position." });
+      return;
+    }
+    if (isMarketExpired) {
+      toast.error("Market Expired", { description: "This market is expired. Orders cannot be copied." });
       return;
     }
     if (!onExecuteCopy) return;
@@ -330,8 +349,14 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
             {/* Payout Forecast */}
             <div className="rounded-xl border border-border/60 bg-secondary/20 p-3 text-xs flex items-center justify-between font-mono">
               <span className="text-muted-foreground font-sans">Potential Return:</span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                ${payout} tUSDC (+{roiPercent}%)
+              <span
+                className={`font-bold ${
+                  returnInfo.isPositive
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-rose-600 dark:text-rose-400"
+                }`}
+              >
+                ${payout} tUSDC ({returnInfo.text})
               </span>
             </div>
           </div>
@@ -344,10 +369,21 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
             </Button>
             <Button
               onClick={handleExecuteCopy}
-              disabled={isCopying || numericAmount <= 0 || (userBalanceUSDC > 0 && numericAmount > userBalanceUSDC)}
-              className="rounded-xl text-xs font-semibold px-6 h-10 bg-violet-600 hover:bg-violet-500 text-white shadow-md shadow-violet-600/20"
+              disabled={
+                isMarketExpired ||
+                isCopying ||
+                numericAmount <= 0 ||
+                (userBalanceUSDC > 0 && numericAmount > userBalanceUSDC)
+              }
+              className={`rounded-xl text-xs font-semibold px-6 h-10 transition-all ${
+                isMarketExpired
+                  ? "bg-secondary text-muted-foreground cursor-not-allowed hover:bg-secondary"
+                  : "bg-violet-600 hover:bg-violet-500 text-white shadow-md shadow-violet-600/20"
+              }`}
             >
-              {isCopying ? (
+              {isMarketExpired ? (
+                "Market Expired"
+              ) : isCopying ? (
                 <>
                   <Loader2 className="size-3.5 animate-spin mr-1.5" />
                   Broadcasting on Somnia...

@@ -59,7 +59,7 @@ export const MarketsSidebar: React.FC<MarketsSidebarProps> = ({
       </div>
 
       {/* Markets List */}
-      <div className="flex flex-col gap-1.5 overflow-y-auto pr-1">
+      <div className="flex flex-col gap-1.5 overflow-y-auto pr-1 flex-1 min-h-0">
         {filtered.map((market) => {
           const isSelected = market.id === activeMarketId;
           const yesPercent = Math.round(market.yesProbability * 100);

@@ -73,11 +73,13 @@ export function TradingTerminalView() {
     positions,
     openOrders,
     settledPositions,
+    tradeHistory,
     handleOrderPlaced,
     handleCopyExecuted,
     handleCancelOrder,
     handleRedeemWinnings,
   } = usePositionsManager({
+    markets,
     selectedMarket,
     walletAddress,
     walletClient,
@@ -86,6 +88,7 @@ export function TradingTerminalView() {
 
   // 6. Action Execution Hook (Transport Layer)
   const tradingActions = useTradingActions({
+    markets,
     selectedMarket,
     walletAddress,
     walletClient,
@@ -135,16 +138,8 @@ export function TradingTerminalView() {
           </div>
         ) : selectedMarket ? (
           <>
-            {/* Active Market Info Bar (Mobile: order-1 on top; Desktop: lg:order-2 below trading columns) */}
-            <div className="order-1 lg:order-2 mb-3 lg:mb-0 lg:mt-4 rounded-2xl overflow-hidden border border-border/60 bg-card/40 shadow-xs">
-              <MarketInfoBar
-                market={selectedMarket}
-                onOpenMarketModal={() => modals.setIsMarketSelectModalOpen(true)}
-              />
-            </div>
-
-            {/* Trading Workspace Container (Mobile: order-2; Desktop: lg:order-1) */}
-            <div className="order-2 lg:order-1">
+            {/* Trading Workspace Container (3 Columns on Top) */}
+            <div>
               {/* Mobile View Switcher (Only on small screens < lg) */}
               <TerminalMobileSwitcher
                 activeTab={mobileTab}
@@ -155,7 +150,7 @@ export function TradingTerminalView() {
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                 {/* Left: Markets Switcher Sidebar (3 cols) */}
                 <div
-                  className={`lg:col-span-3 h-[420px] lg:h-[480px] ${
+                  className={`lg:col-span-3 h-[420px] lg:h-[560px] ${
                     mobileTab === "markets" ? "block" : "hidden lg:block"
                   }`}
                 >
@@ -172,7 +167,7 @@ export function TradingTerminalView() {
 
                 {/* Center: Live Order Book Panel (5 cols) */}
                 <div
-                  className={`lg:col-span-5 h-[420px] lg:h-[480px] ${
+                  className={`lg:col-span-5 h-[420px] lg:h-[560px] ${
                     mobileTab === "orderbook" ? "block" : "hidden lg:block"
                   }`}
                 >
@@ -187,7 +182,7 @@ export function TradingTerminalView() {
 
                 {/* Right: Order Entry Ticket (4 cols) */}
                 <div
-                  className={`lg:col-span-4 h-auto lg:h-[480px] ${
+                  className={`lg:col-span-4 h-auto lg:h-[560px] ${
                     mobileTab === "trade" ? "block" : "hidden lg:block"
                   }`}
                 >
@@ -205,18 +200,27 @@ export function TradingTerminalView() {
               </div>
             </div>
 
+            {/* Active Market Info Bar (Placed BELOW trading columns as requested) */}
+            <div className="my-4 rounded-2xl overflow-hidden border border-border/60 bg-card/40 shadow-xs">
+              <MarketInfoBar
+                market={selectedMarket}
+                onOpenMarketModal={() => modals.setIsMarketSelectModalOpen(true)}
+              />
+            </div>
+
             {/* Bottom: Comprehensive Positions & Social Panel */}
-            <div className="order-3 mt-4">
+            <div className="mt-1">
               <UserPositionsPanel
                 positions={positions}
                 openOrders={openOrders}
                 settledPositions={settledPositions}
+                tradeHistory={tradeHistory}
                 walletAddress={walletAddress}
                 walletClient={walletClient}
                 onSharePnl={modals.openPnlModal}
                 onShareCopy={modals.openCopyModal}
                 onCancelOrder={handleCancelOrder}
-                onRedeemWinnings={tradingActions.executeRedeem}
+                onRedeemWinnings={handleRedeemWinnings}
               />
             </div>
           </>

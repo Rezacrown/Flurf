@@ -5,7 +5,7 @@ import React, { useState } from "react";
 
 // 2. Third-Party Libraries
 import confetti from "canvas-confetti";
-import { Check, ExternalLink, Loader2 } from "lucide-react";
+import { Check, ExternalLink, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 // 3. UI Components
@@ -16,7 +16,11 @@ import { Input } from "@/components/ui/input";
 // 4. Types & Helpers
 import type { WalletClient, Hash } from "viem";
 import type { BinaryMarket, MarketOutcome } from "@/domain/types";
-import { calculatePotentialProfit } from "@/domain/pnl-calculator";
+import {
+  calculatePotentialProfit,
+  clampProbabilityPrice,
+  formatReturnString,
+} from "@/domain/pnl-calculator";
 
 interface OrderEntryPanelProps {
   market: BinaryMarket;
@@ -57,24 +61,47 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
   const [side, setSide] = useState<MarketOutcome>("YES");
   const [orderType, setOrderType] = useState<"LIMIT" | "MARKET" | "POST_ONLY">("LIMIT");
   const [price, setPrice] = useState<string>(
-    initialPrice ? initialPrice.toFixed(2) : market.bestAsk.toFixed(2)
+    initialPrice
+      ? clampProbabilityPrice(initialPrice).toFixed(2)
+      : clampProbabilityPrice(market.bestAsk > 0 ? market.bestAsk : 0.5).toFixed(2)
   );
-  const [quantity, setQuantity] = useState<string>("50"); // shares/contracts
+  // Point 1: Primary input is now Collateral Amount in tUSDC (1 tUSDC = 1 USD)
+  const [collateralAmount, setCollateralAmount] = useState<string>("25");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [recentTx, setRecentTx] = useState<string | null>(null);
+
+  // Expiry check: Check if current time has passed expiryTimestamp or status is not Trading
+  const nowSec = Math.floor(Date.now() / 1000);
+  const isMarketExpired = Boolean(
+    (market.expiryTimestamp && market.expiryTimestamp <= nowSec) ||
+    market.status === "Resolving" ||
+    market.status === "Finalized"
+  );
 
   // Mint / Burn Set State
   const [setAction, setSetAction] = useState<"mint" | "burn">("mint");
   const [setAmount, setSetAmount] = useState<string>("20");
 
   const numPrice = parseFloat(price) || 0;
-  const numQuantity = parseFloat(quantity) || 0;
-  const totalCost = Number((numPrice * numQuantity).toFixed(2));
-  const { payout, profit, roiPercent } = calculatePotentialProfit(totalCost, numPrice);
+  const isPriceValid = numPrice >= 0.01 && numPrice <= 0.99;
+  const numCollateral = Math.max(0, parseFloat(collateralAmount) || 0);
+
+  // Contracts (shares) = Collateral / Price (integer lots)
+  const contracts = numPrice > 0 ? Math.floor(numCollateral / numPrice) : 0;
+  const totalCost = Number((contracts * numPrice).toFixed(2));
+  const { payout, profit, roiPercent } = calculatePotentialProfit(
+    totalCost > 0 ? totalCost : numCollateral,
+    numPrice
+  );
+  const returnInfo = formatReturnString(profit, roiPercent);
 
   const handlePlaceOrder = async () => {
     if (!walletAddress) {
       toast.error("Wallet not connected", { description: "Please connect your wallet to place orders." });
+      return;
+    }
+    if (isMarketExpired) {
+      toast.error("Market expired", { description: "Trading is closed on expired markets." });
       return;
     }
     if (!onPlaceOrder) return;
@@ -84,7 +111,7 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
       const res = await onPlaceOrder({
         side,
         price: numPrice,
-        quantity: numQuantity,
+        quantity: Math.max(1, contracts),
         orderType,
       });
 
@@ -94,7 +121,7 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
           symbol: market.symbol,
           outcome: side,
           price: numPrice,
-          amount: totalCost,
+          amount: totalCost > 0 ? totalCost : numCollateral,
           txHash: res.hash,
           orderId: res.orderId,
         });
@@ -107,6 +134,10 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
   const handleSetOperation = async () => {
     if (!walletAddress) {
       toast.error("Wallet not connected", { description: "Please connect your wallet first." });
+      return;
+    }
+    if (isMarketExpired) {
+      toast.error("Market expired", { description: "Minting sets is not available on expired markets." });
       return;
     }
 
@@ -130,10 +161,10 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full rounded-2xl border border-border/60 bg-card p-4">
+    <div className="flex flex-col h-full rounded-2xl border border-border/60 bg-card p-3.5 sm:p-4 overflow-y-auto overflow-x-hidden">
       {/* Top Tab Switcher: Order vs Complete Set */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-        <TabsList className="grid grid-cols-2 bg-secondary/50 p-1 rounded-xl mb-4">
+        <TabsList className="grid grid-cols-2 bg-secondary/50 p-1 rounded-xl mb-3">
           <TabsTrigger value="trade" className="rounded-lg text-xs font-medium">
             Order Book Trade
           </TabsTrigger>
@@ -143,37 +174,53 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
         </TabsList>
 
         {/* --- TAB 1: ORDER BOOK TRADE --- */}
-        <TabsContent value="trade" className="space-y-4 m-0">
+        <TabsContent value="trade" className="space-y-2.5 m-0">
+          {/* Market Expired Warning Banner */}
+          {isMarketExpired && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-2">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>This prediction market has expired. Trading is closed on Somnia Shannon.</span>
+            </div>
+          )}
+
           {/* Side Toggle: BUY YES / BUY NO */}
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
+              disabled={isMarketExpired}
               onClick={() => {
                 setSide("YES");
-                setPrice(market.bestAsk.toFixed(2));
+                const p = clampProbabilityPrice(market.bestAsk > 0 ? market.bestAsk : 0.5);
+                setPrice(p.toFixed(2));
               }}
-              className={`rounded-xl py-2.5 px-3 text-center transition-all font-semibold text-xs ${
-                side === "YES"
+              className={`rounded-xl py-2 px-3 text-center transition-all font-semibold text-xs ${
+                isMarketExpired
+                  ? "opacity-60 cursor-not-allowed bg-secondary/30 text-muted-foreground"
+                  : side === "YES"
                   ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
                   : "bg-secondary/40 text-muted-foreground hover:bg-secondary"
               }`}
             >
-              BUY YES (${market.bestAsk.toFixed(2)})
+              BUY YES (${clampProbabilityPrice(market.bestAsk > 0 ? market.bestAsk : 0.5).toFixed(2)})
             </button>
 
             <button
               type="button"
+              disabled={isMarketExpired}
               onClick={() => {
                 setSide("NO");
-                setPrice((1 - market.bestBid).toFixed(2));
+                const p = clampProbabilityPrice(1 - (market.bestBid > 0 ? market.bestBid : 0.5));
+                setPrice(p.toFixed(2));
               }}
-              className={`rounded-xl py-2.5 px-3 text-center transition-all font-semibold text-xs ${
-                side === "NO"
+              className={`rounded-xl py-2 px-3 text-center transition-all font-semibold text-xs ${
+                isMarketExpired
+                  ? "opacity-60 cursor-not-allowed bg-secondary/30 text-muted-foreground"
+                  : side === "NO"
                   ? "bg-rose-600 text-white shadow-md shadow-rose-600/20"
                   : "bg-secondary/40 text-muted-foreground hover:bg-secondary"
               }`}
             >
-              BUY NO (${(1 - market.bestBid).toFixed(2)})
+              BUY NO (${clampProbabilityPrice(1 - (market.bestBid > 0 ? market.bestBid : 0.5)).toFixed(2)})
             </button>
           </div>
 
@@ -185,9 +232,12 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
                 <button
                   key={t}
                   type="button"
+                  disabled={isMarketExpired}
                   onClick={() => setOrderType(t)}
                   className={`rounded-md px-2 py-1 text-[10px] font-mono font-medium transition-colors ${
-                    orderType === t
+                    isMarketExpired
+                      ? "opacity-50 cursor-not-allowed bg-secondary/40 text-muted-foreground"
+                      : orderType === t
                       ? "bg-foreground text-background"
                       : "bg-secondary/60 text-muted-foreground hover:bg-secondary"
                   }`}
@@ -213,58 +263,103 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
               max="0.99"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              disabled={orderType === "MARKET"}
-              className="font-mono text-sm h-9"
+              disabled={isMarketExpired || orderType === "MARKET"}
+              className={`font-mono text-sm h-9 ${
+                !isPriceValid && price ? "border-rose-500 focus-visible:ring-rose-500" : ""
+              }`}
             />
+            {!isPriceValid && price && (
+              <p className="text-[10px] text-rose-500 mt-1 font-mono">
+                Price must be between $0.01 and $0.99 (probability 1% - 99%)
+              </p>
+            )}
           </div>
 
-          {/* Quantity (Shares/Contracts) */}
+          {/* Amount / Collateral (tUSDC) Input */}
           <div>
             <div className="flex justify-between text-xs mb-1">
-              <span className="text-muted-foreground">Contracts (Shares)</span>
+              <span className="text-muted-foreground font-medium">Amount (tUSDC)</span>
               <span className="text-muted-foreground font-mono text-[11px]">
-                Balance: ${userBalanceUSDC.toLocaleString()}
+                Balance: ${userBalanceUSDC.toLocaleString()} tUSDC
               </span>
             </div>
-            <Input
-              type="number"
-              min="1"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              className="font-mono text-sm h-9"
-            />
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-muted-foreground">
+                $
+              </span>
+              <Input
+                type="number"
+                min="0.1"
+                step="1"
+                value={collateralAmount}
+                onChange={(e) => setCollateralAmount(e.target.value)}
+                disabled={isMarketExpired}
+                className="font-mono text-sm h-9 pl-7 pr-16"
+                placeholder="25.00"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-muted-foreground">
+                tUSDC
+              </span>
+            </div>
 
             {/* Quick Sizing Buttons */}
-            <div className="mt-1.5 flex gap-1.5">
-              {[20, 50, 100, 250].map((s) => (
+            <div className="mt-1 flex gap-1.5">
+              {[10, 25, 50, 100].map((amt) => (
                 <button
-                  key={s}
+                  key={amt}
                   type="button"
-                  onClick={() => setQuantity(s.toString())}
-                  className="rounded-md border border-border/70 bg-secondary/40 px-2 py-0.5 text-[10px] font-mono hover:bg-secondary"
+                  disabled={isMarketExpired}
+                  onClick={() => setCollateralAmount(amt.toString())}
+                  className={`rounded-md border border-border/70 bg-secondary/40 px-2 py-0.5 text-[10px] font-mono ${
+                    isMarketExpired ? "opacity-50 cursor-not-allowed" : "hover:bg-secondary cursor-pointer"
+                  }`}
                 >
-                  {s} shares
+                  ${amt}
                 </button>
               ))}
+              {userBalanceUSDC > 0 && (
+                <button
+                  type="button"
+                  disabled={isMarketExpired}
+                  onClick={() => setCollateralAmount(userBalanceUSDC.toFixed(1))}
+                  className={`rounded-md border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-mono font-semibold ${
+                    isMarketExpired ? "opacity-50 cursor-not-allowed" : "hover:bg-emerald-500/20 cursor-pointer"
+                  }`}
+                >
+                  MAX
+                </button>
+              )}
             </div>
           </div>
 
           {/* Order Summary */}
-          <div className="rounded-xl border border-border/60 bg-secondary/20 p-3 text-xs space-y-1.5 font-mono">
+          <div className="rounded-xl border border-border/60 bg-secondary/20 p-2.5 text-xs space-y-1 font-mono">
+            <div className="flex justify-between text-muted-foreground text-[11px]">
+              <span>Estimated Contracts:</span>
+              <span className="font-semibold text-foreground">{contracts.toLocaleString()} shares</span>
+            </div>
             <div className="flex justify-between text-muted-foreground text-[11px]">
               <span>Collateral Required:</span>
-              <span className="font-semibold text-foreground">${totalCost} tUSDC</span>
+              <span className="font-semibold text-foreground">
+                ${(totalCost > 0 ? totalCost : numCollateral).toFixed(2)} tUSDC
+              </span>
             </div>
             <div className="flex justify-between text-muted-foreground text-[11px]">
               <span>Winning Payout:</span>
               <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                ${payout} tUSDC
+                ${(contracts * 1.0).toFixed(2)} tUSDC
               </span>
             </div>
             <div className="flex justify-between text-[11px] pt-1 border-t border-border/40 font-bold">
               <span>Potential Return:</span>
-              <span className="text-emerald-600 dark:text-emerald-400">
-                +${profit} (+{roiPercent}%)
+              <span
+                className={
+                  returnInfo.isPositive
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-rose-600 dark:text-rose-400"
+                }
+              >
+                {returnInfo.text}
               </span>
             </div>
           </div>
@@ -272,27 +367,50 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
           {/* Submit Action */}
           <Button
             onClick={handlePlaceOrder}
-            disabled={isSubmitting || totalCost <= 0 || (userBalanceUSDC > 0 && totalCost > userBalanceUSDC)}
-            className={`w-full rounded-xl text-xs font-semibold h-10 ${
-              side === "YES"
+            disabled={
+              isMarketExpired ||
+              !isPriceValid ||
+              isSubmitting ||
+              numCollateral <= 0 ||
+              contracts <= 0 ||
+              (userBalanceUSDC > 0 && numCollateral > userBalanceUSDC)
+            }
+            className={`w-full rounded-xl text-xs font-semibold h-10 transition-all ${
+              isMarketExpired
+                ? "bg-secondary text-muted-foreground cursor-not-allowed hover:bg-secondary"
+                : side === "YES"
                 ? "bg-emerald-600 hover:bg-emerald-500 text-white"
                 : "bg-rose-600 hover:bg-rose-500 text-white"
             }`}
           >
-            {isSubmitting ? (
+            {isMarketExpired ? (
+              "Market Expired (Trading Closed)"
+            ) : isSubmitting ? (
               <>
                 <Loader2 className="size-3.5 animate-spin mr-1.5" />
                 Submitting on Somnia...
               </>
+            ) : !isPriceValid ? (
+              "Invalid Price ($0.01 - $0.99)"
+            ) : numCollateral <= 0 ? (
+              "Enter Collateral Amount"
             ) : (
-              `Place ${side} Order ($${totalCost})`
+              `Place ${side} Order ($${(totalCost > 0 ? totalCost : numCollateral).toFixed(2)})`
             )}
           </Button>
         </TabsContent>
 
         {/* --- TAB 2: COMPLETE SETS (MINT / BURN) --- */}
-        <TabsContent value="sets" className="space-y-4 m-0">
-          <div className="rounded-xl border border-border/60 bg-secondary/20 p-3 text-xs text-muted-foreground leading-relaxed">
+        <TabsContent value="sets" className="space-y-2.5 m-0">
+          {/* Market Expired Warning Banner */}
+          {isMarketExpired && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-2">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>This market has expired. Minting and burning complete sets are disabled.</span>
+            </div>
+          )}
+
+          <div className="rounded-xl border border-border/60 bg-secondary/20 p-2.5 text-xs text-muted-foreground leading-relaxed">
             <span className="font-semibold text-foreground block mb-1">
               Complete Set Inventory:
             </span>
@@ -302,8 +420,11 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
+              disabled={isMarketExpired}
               onClick={() => setSetAction("mint")}
               className={`rounded-xl py-2 px-3 text-center text-xs font-semibold transition-all ${
+                isMarketExpired ? "opacity-50 cursor-not-allowed " : "cursor-pointer "
+              }${
                 setAction === "mint"
                   ? "bg-foreground text-background shadow-xs"
                   : "bg-secondary/40 text-muted-foreground hover:bg-secondary"
@@ -313,8 +434,11 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
             </button>
             <button
               type="button"
+              disabled={isMarketExpired}
               onClick={() => setSetAction("burn")}
               className={`rounded-xl py-2 px-3 text-center text-xs font-semibold transition-all ${
+                isMarketExpired ? "opacity-50 cursor-not-allowed " : "cursor-pointer "
+              }${
                 setAction === "burn"
                   ? "bg-foreground text-background shadow-xs"
                   : "bg-secondary/40 text-muted-foreground hover:bg-secondary"
@@ -332,6 +456,7 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
               type="number"
               value={setAmount}
               onChange={(e) => setSetAmount(e.target.value)}
+              disabled={isMarketExpired}
               className="font-mono text-sm h-9"
             />
           </div>
@@ -353,10 +478,14 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
 
           <Button
             onClick={handleSetOperation}
-            disabled={isSubmitting}
-            className="w-full rounded-xl text-xs font-semibold h-10"
+            disabled={isMarketExpired || isSubmitting || parseFloat(setAmount) <= 0}
+            className={`w-full rounded-xl text-xs font-semibold h-10 ${
+              isMarketExpired ? "bg-secondary text-muted-foreground cursor-not-allowed hover:bg-secondary" : ""
+            }`}
           >
-            {isSubmitting ? (
+            {isMarketExpired ? (
+              "Market Expired (Minting Disabled)"
+            ) : isSubmitting ? (
               <>
                 <Loader2 className="size-3.5 animate-spin mr-1.5" />
                 Processing on Somnia...

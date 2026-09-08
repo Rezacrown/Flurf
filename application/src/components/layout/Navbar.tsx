@@ -1,11 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShieldCheck, Wallet } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Wallet, Menu, X, ArrowUpRight, Droplet, LayoutDashboard, Terminal } from "lucide-react";
 import { useFlurfWallet } from "@/hooks/use-flurf-wallet";
+import { AccountModal } from "@/components/layout/AccountModal";
 
 interface NavbarProps {
   fluid?: boolean;
@@ -15,56 +15,50 @@ interface NavbarProps {
   balanceUSDC?: number;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({
-  fluid,
-  onConnectWallet,
-  walletAddress: propWalletAddress,
-  balanceUSDC = 0,
-}) => {
+export const Navbar: React.FC<NavbarProps> = ({ fluid, onConnectWallet }) => {
   const pathname = usePathname();
-  const isFluid = fluid ?? (pathname === "/app");
-  const {
-    address: hookAddress,
-    connect,
-    disconnect,
-    isConnecting,
-  } = useFlurfWallet();
-
-  const activeAddress = propWalletAddress !== undefined ? propWalletAddress : hookAddress;
-  const handleConnect = onConnectWallet || connect;
-  const handleDisconnect = disconnect;
+  const isFluid = fluid ?? pathname === "/app";
+  const { address, isConnected, connect, disconnect, isConnecting } =
+    useFlurfWallet();
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navLinks = [
-    { name: "Overview", href: "/", active: pathname === "/" },
-    { name: "App", href: "/app", active: pathname === "/app" },
-    { name: "Faucet", href: "/faucet", active: pathname === "/faucet" },
+    { name: "Overview", icon: LayoutDashboard, href: "/", active: pathname === "/" },
+    { name: "App", icon: Terminal, href: "/app", active: pathname === "/app" },
+    { name: "Faucet", icon: Droplet, href: "/faucet", active: pathname === "/faucet" },
   ];
 
   return (
     <header
       className={`sticky top-0 z-40 w-full bg-background/85 backdrop-blur-md transition-colors border-b border-border/20 ${
-        isFluid ? "pt-3.5 pb-3 sm:pt-4 sm:pb-3.5" : "pt-5 pb-4 sm:pt-6 sm:pb-4"
+        isFluid ? "py-2 sm:py-3.5" : "py-2.5 sm:py-4"
       }`}
     >
       <div
         className={`relative flex items-center justify-between ${
-          isFluid ? "w-full px-4 sm:px-6" : "mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"
+          isFluid
+            ? "w-full px-3 sm:px-6"
+            : "mx-auto max-w-7xl px-3 sm:px-6 lg:px-8"
         }`}
       >
         {/* Left: Brand Name */}
-        <div className="flex items-center">
+        <div className="flex items-center shrink-0">
           <Link href="/" className="flex items-center gap-2 group">
-            <span className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+            <span className="font-serif text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-foreground">
               Flurf
             </span>
           </Link>
         </div>
 
-        {/* Center: Wide Horizontal Floating Pill */}
+        {/* Center Desktop: Wide Horizontal Floating Pill */}
         <nav className="absolute left-1/2 -translate-x-1/2 hidden sm:flex items-center justify-center bg-white/95 dark:bg-card/95 shadow-sm border border-border/70 rounded-full px-8 sm:px-12 h-11 backdrop-blur-xl w-[460px] sm:w-[540px] md:w-[620px]">
           <ul className="flex items-center justify-between w-full h-full text-xs sm:text-sm font-medium">
             {navLinks.map((item) => (
-              <li key={item.name} className="relative flex-1 text-center h-full">
+              <li
+                key={item.name}
+                className="relative flex-1 text-center h-full"
+              >
                 <Link
                   href={item.href}
                   className={`transition-all h-full flex flex-col items-center justify-center py-1 group ${
@@ -85,75 +79,102 @@ export const Navbar: React.FC<NavbarProps> = ({
           </ul>
         </nav>
 
-        {/* Right: Adaptive Wallet Connect or Launch App CTA */}
-        <div className="flex items-center gap-3">
-          {activeAddress ? (
-            <div className="flex items-center gap-2 rounded-full border border-border/80 bg-secondary/50 px-3 py-1.5 text-xs shadow-2xs backdrop-blur-sm">
-              <ShieldCheck className="size-3.5 text-emerald-500 shrink-0" />
-              <span className="font-mono text-foreground font-medium">
-                {activeAddress.slice(0, 6)}...{activeAddress.slice(-4)}
-              </span>
-              <span className="ml-1 rounded-full bg-card px-2.5 py-0.5 font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-2xs">
-                ${balanceUSDC.toLocaleString()} tUSDC
-              </span>
+        {/* Right: Adaptive Wallet Connect & Mobile Hamburger */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {isConnected && address ? (
+            <div className="relative">
               <button
                 type="button"
-                onClick={handleDisconnect}
-                title="Disconnect Wallet"
-                className="ml-1 text-muted-foreground hover:text-foreground text-[10px] font-medium cursor-pointer transition-colors"
+                onClick={() => setIsAccountModalOpen((prev) => !prev)}
+                className="group flex items-center gap-1.5 sm:gap-2 rounded-full border border-border/70 bg-card hover:bg-secondary/70 px-2.5 sm:px-3.5 py-1 sm:py-1.5 text-xs font-medium text-foreground transition-all cursor-pointer shadow-2xs hover:border-foreground/20 active:scale-95"
+                title="Manage Wallet Account"
               >
-                Disconnect
+                <span className="size-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20 group-hover:scale-110 transition-transform" />
+                <span className="font-mono text-xs font-semibold tracking-tight">
+                  {address.slice(0, 4)}...{address.slice(-4)}
+                </span>
               </button>
+
+              {/* Account Modal */}
+              <AccountModal
+                isOpen={isAccountModalOpen}
+                onClose={() => setIsAccountModalOpen(false)}
+                address={address}
+                onDisconnect={disconnect}
+              />
             </div>
-          ) : pathname === "/app" ? (
-            <Button
-              size="sm"
-              onClick={handleConnect}
-              disabled={isConnecting}
-              className="rounded-full px-5 text-xs font-semibold shadow-xs bg-foreground text-background hover:opacity-90 h-9 cursor-pointer"
-            >
-              <Wallet className="size-3.5 mr-1.5" />
-              {isConnecting ? "Connecting..." : "Connect Wallet"}
-            </Button>
           ) : (
-            <Link href="/app">
-              <Button
-                size="sm"
-                className="rounded-full px-5 text-xs font-semibold shadow-xs bg-foreground text-background hover:opacity-90 h-9"
-              >
-                Launch App →
-              </Button>
-            </Link>
+            <button
+              type="button"
+              onClick={onConnectWallet || connect}
+              disabled={isConnecting}
+              className="flex items-center gap-1.5 rounded-full px-3 sm:px-5 text-xs font-semibold shadow-xs bg-foreground text-background hover:opacity-90 h-8 sm:h-9 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+            >
+              <Wallet className="size-3.5" />
+              <span>{isConnecting ? "Connecting..." : "Connect"}</span>
+            </button>
           )}
+
+          {/* Mobile Hamburger Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+            className="flex sm:hidden size-8 items-center justify-center rounded-xl border border-border/70 bg-card hover:bg-secondary text-foreground transition-all cursor-pointer shadow-2xs active:scale-95"
+            aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={isMobileMenuOpen}
+          >
+            {isMobileMenuOpen ? (
+              <X className="size-4 text-foreground" />
+            ) : (
+              <Menu className="size-4 text-foreground" />
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Mobile Floating Pill Navigation */}
-      <div className="flex sm:hidden justify-center mt-3 px-4">
-        <nav className="flex items-center justify-between w-full max-w-[340px] bg-white/95 dark:bg-card/95 shadow-sm border border-border/70 rounded-full px-6 h-9 backdrop-blur-lg">
-          <ul className="flex items-center justify-between w-full h-full text-xs font-medium">
-            {navLinks.map((item) => (
-              <li key={item.name} className="relative flex-1 text-center h-full">
-                <Link
-                  href={item.href}
-                  className={`transition-colors h-full flex flex-col items-center justify-center py-0.5 ${
-                    item.active
-                      ? "text-foreground font-semibold"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <span>{item.name}</span>
-                  <span
-                    className={`size-1 rounded-full mt-0.5 transition-all ${
-                      item.active ? "bg-foreground" : "bg-transparent"
+      {/* Mobile Expandable Navigation Accordion (Expands below header when hamburger is open) */}
+      {isMobileMenuOpen && (
+        <div className="sm:hidden border-t border-border/40 bg-card/95 backdrop-blur-xl px-4 py-3 shadow-lg animate-in slide-in-from-top-2 duration-200 mt-2">
+          <ul className="flex flex-col space-y-1">
+            {navLinks.map((item) => {
+              const Icon = item.icon;
+              return (
+                <li key={item.name}>
+                  <Link
+                    href={item.href}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      item.active
+                        ? "bg-secondary text-foreground font-bold shadow-2xs"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
                     }`}
-                  />
-                </Link>
-              </li>
-            ))}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Icon className={`size-4 ${item.active ? "text-emerald-500" : "text-muted-foreground"}`} />
+                      <span>{item.name}</span>
+                    </div>
+                    {item.active ? (
+                      <span className="size-1.5 rounded-full bg-emerald-500" />
+                    ) : (
+                      <ArrowUpRight className="size-3.5 text-muted-foreground/50" />
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
-        </nav>
-      </div>
+
+          <div className="mt-3 pt-2.5 border-t border-border/30 flex items-center justify-between text-[11px] text-muted-foreground font-mono">
+            <span className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+              Somnia Shannon Testnet
+            </span>
+            <span className="text-[10px] bg-secondary px-2 py-0.5 rounded-md font-semibold">
+              Chain 50312
+            </span>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

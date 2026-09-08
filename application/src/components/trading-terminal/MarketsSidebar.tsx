@@ -2,19 +2,21 @@
 
 import React, { useState } from "react";
 import { BinaryMarket } from "@/domain/types";
-import { Search, Flame, Clock } from "lucide-react";
+import { Search, Flame, Clock, Maximize2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 interface MarketsSidebarProps {
   markets: BinaryMarket[];
   activeMarketId: string;
   onSelectMarket: (market: BinaryMarket) => void;
+  onOpenMarketModal?: () => void;
 }
 
 export const MarketsSidebar: React.FC<MarketsSidebarProps> = ({
   markets,
   activeMarketId,
   onSelectMarket,
+  onOpenMarketModal,
 }) => {
   const [search, setSearch] = useState("");
 
@@ -27,7 +29,25 @@ export const MarketsSidebar: React.FC<MarketsSidebarProps> = ({
 
   return (
     <div className="flex flex-col h-full rounded-2xl border border-border/60 bg-card p-3">
-      {/* Search Header */}
+      {/* Header & Modal Launcher */}
+      <div className="flex items-center justify-between mb-2 px-1">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Live Markets
+        </span>
+        {onOpenMarketModal && (
+          <button
+            type="button"
+            onClick={onOpenMarketModal}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+            title="Open Market Selector Dialog"
+          >
+            <Maximize2 className="size-3" />
+            <span>Browse All</span>
+          </button>
+        )}
+      </div>
+
+      {/* Search Input */}
       <div className="relative mb-3">
         <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
         <Input

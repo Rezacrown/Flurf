@@ -3,13 +3,14 @@
 import React, { useEffect, useState } from "react";
 import { BinaryMarket } from "@/domain/types";
 import { Badge } from "@/components/ui/badge";
-import { Clock, ExternalLink, Activity, DollarSign, Layers } from "lucide-react";
+import { Clock, ExternalLink, Activity, DollarSign, Layers, ChevronDown } from "lucide-react";
 
 interface MarketInfoBarProps {
   market: BinaryMarket;
+  onOpenMarketModal?: () => void;
 }
 
-export const MarketInfoBar: React.FC<MarketInfoBarProps> = ({ market }) => {
+export const MarketInfoBar: React.FC<MarketInfoBarProps> = ({ market, onOpenMarketModal }) => {
   const [timeLeft, setTimeLeft] = useState<string>("14m 22s");
 
   useEffect(() => {
@@ -30,11 +31,11 @@ export const MarketInfoBar: React.FC<MarketInfoBarProps> = ({ market }) => {
   const noPercent = 100 - yesPercent;
 
   return (
-    <div className="border-b border-border/40 bg-card/60 px-4 py-3 sm:px-6">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+    <div className="border-b border-border/40 bg-card/60 p-3 sm:px-6 sm:py-3.5">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 lg:gap-4">
         {/* Left: Asset Icon, Symbol, Question */}
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-secondary text-foreground font-bold text-base shadow-xs">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="flex size-9 sm:size-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground font-bold text-sm sm:text-base shadow-xs mt-0.5 sm:mt-0">
             {market.asset === "BTC"
               ? "₿"
               : market.asset === "ETH"
@@ -44,63 +45,84 @@ export const MarketInfoBar: React.FC<MarketInfoBarProps> = ({ market }) => {
               : "S"}
           </div>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-xs font-bold text-foreground">
-                {market.symbol.split("/")[0]}
-              </span>
-              <Badge variant="outline" className="text-[10px] px-2 py-0 border-emerald-500/30 text-emerald-600 bg-emerald-500/10">
-                {market.interval} Window
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              {onOpenMarketModal ? (
+                <button
+                  type="button"
+                  onClick={onOpenMarketModal}
+                  className="inline-flex items-center gap-1 font-mono text-xs font-bold text-foreground hover:text-emerald-600 dark:hover:text-emerald-400 bg-secondary/80 hover:bg-secondary px-2 sm:px-2.5 py-0.5 rounded-lg transition-colors cursor-pointer border border-border/40"
+                  title="Click to switch market"
+                >
+                  <span>{market.symbol.split("/")[0]}</span>
+                  <ChevronDown className="size-3 text-muted-foreground" />
+                </button>
+              ) : (
+                <span className="font-mono text-xs font-bold text-foreground">
+                  {market.symbol.split("/")[0]}
+                </span>
+              )}
+              <Badge variant="outline" className="text-[10px] px-1.5 sm:px-2 py-0 border-emerald-500/30 text-emerald-600 bg-emerald-500/10">
+                {market.interval}
               </Badge>
-              <Badge variant="outline" className="text-[10px] px-2 py-0 border-border text-muted-foreground">
-                CLOB Pool: {market.poolAddress.slice(0, 6)}...{market.poolAddress.slice(-4)}
+              <Badge variant="outline" className="text-[10px] px-1.5 sm:px-2 py-0 border-border text-muted-foreground hidden xs:inline-flex">
+                Pool: {market.poolAddress.slice(0, 4)}...{market.poolAddress.slice(-3)}
               </Badge>
+              <a
+                href={`https://shannon-explorer.somnia.network/address/${market.poolAddress}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 text-[10px] sm:hidden"
+                title="View on Explorer"
+              >
+                <ExternalLink className="size-3" />
+              </a>
             </div>
-            <h1 className="font-serif text-lg font-medium text-foreground leading-snug pt-0.5">
+            <h1 className="font-serif text-sm sm:text-lg font-medium text-foreground leading-snug pt-1 line-clamp-2">
               {market.question}
             </h1>
           </div>
         </div>
 
         {/* Right: Implied Odds, Expiry Countdown & Volume */}
-        <div className="flex flex-wrap items-center gap-4 text-xs">
+        <div className="grid grid-cols-3 sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-3 text-xs">
           {/* Expiry Timer */}
-          <div className="rounded-xl border border-border bg-secondary/30 px-3 py-1.5 flex items-center gap-2">
-            <Clock className="size-3.5 text-amber-500" />
-            <div>
-              <span className="text-[10px] text-muted-foreground block leading-none">Time to Expiry</span>
-              <span className="font-mono font-bold text-foreground">{timeLeft}</span>
+          <div className="rounded-xl border border-border bg-secondary/30 px-2 sm:px-3 py-1.5 flex items-center gap-1.5 sm:gap-2">
+            <Clock className="size-3.5 text-amber-500 shrink-0" />
+            <div className="min-w-0">
+              <span className="text-[9px] sm:text-[10px] text-muted-foreground block leading-none truncate">Expiry</span>
+              <span className="font-mono font-bold text-foreground text-[11px] sm:text-xs truncate block">{timeLeft}</span>
             </div>
           </div>
 
           {/* Implied Probability Badge */}
-          <div className="rounded-xl border border-border bg-secondary/30 px-3 py-1.5 flex items-center gap-2">
-            <Activity className="size-3.5 text-emerald-500" />
-            <div>
-              <span className="text-[10px] text-muted-foreground block leading-none">Implied Odds</span>
-              <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                YES {yesPercent}% · NO {noPercent}%
+          <div className="rounded-xl border border-border bg-secondary/30 px-2 sm:px-3 py-1.5 flex items-center gap-1.5 sm:gap-2">
+            <Activity className="size-3.5 text-emerald-500 shrink-0" />
+            <div className="min-w-0">
+              <span className="text-[9px] sm:text-[10px] text-muted-foreground block leading-none truncate">Odds</span>
+              <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-[11px] sm:text-xs truncate block">
+                {yesPercent}% / {noPercent}%
               </span>
             </div>
           </div>
 
           {/* Volume */}
-          <div className="rounded-xl border border-border bg-secondary/30 px-3 py-1.5 flex items-center gap-2">
-            <DollarSign className="size-3.5 text-blue-500" />
-            <div>
-              <span className="text-[10px] text-muted-foreground block leading-none">24h Volume</span>
-              <span className="font-mono font-bold text-foreground">
-                ${market.volume24h.toLocaleString()} tUSDC
+          <div className="rounded-xl border border-border bg-secondary/30 px-2 sm:px-3 py-1.5 flex items-center gap-1.5 sm:gap-2">
+            <DollarSign className="size-3.5 text-blue-500 shrink-0" />
+            <div className="min-w-0">
+              <span className="text-[9px] sm:text-[10px] text-muted-foreground block leading-none truncate">24h Vol</span>
+              <span className="font-mono font-bold text-foreground text-[11px] sm:text-xs truncate block">
+                ${market.volume24h >= 1000 ? `${(market.volume24h / 1000).toFixed(1)}k` : market.volume24h}
               </span>
             </div>
           </div>
 
-          {/* Explorer Link */}
+          {/* Explorer Link (Desktop) */}
           <a
             href={`https://shannon-explorer.somnia.network/address/${market.poolAddress}`}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-1 rounded-xl border border-border/70 hover:border-border bg-card p-2 text-muted-foreground hover:text-foreground transition-colors"
+            className="hidden sm:flex items-center gap-1 rounded-xl border border-border/70 hover:border-border bg-card p-2 text-muted-foreground hover:text-foreground transition-colors"
             title="View Pool on Somnia Explorer"
           >
             <ExternalLink className="size-3.5" />

@@ -15,8 +15,9 @@ import { CopyTradeModal, CopyIntentData } from "@/components/copy-trade/CopyTrad
 import { FaucetModal } from "@/components/trading/FaucetModal";
 import { getLiveMarketsAction } from "@/actions/markets.action";
 import { getUserUSDCBalanceAction } from "@/actions/faucet.action";
+import { MarketSelectModal } from "@/components/trading-terminal/MarketSelectModal";
 import { BinaryMarket, MarketOutcome, PnlShareData, UserPosition, OpenOrder, SettledPosition, OrderBookData } from "@/domain/types";
-import { ArrowRight, ShieldCheck, Loader2 } from "lucide-react";
+import { ArrowRight, ShieldCheck, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 
 function TradingTerminalContent() {
@@ -90,6 +91,10 @@ function TradingTerminalContent() {
   const [pnlData, setPnlData] = useState<PnlShareData | null>(null);
   const [isCopyOpen, setIsCopyOpen] = useState<boolean>(() => isCopyParam);
   const [isFaucetOpen, setIsFaucetOpen] = useState(false);
+  const [isMarketSelectModalOpen, setIsMarketSelectModalOpen] = useState(false);
+
+  // Responsive Mobile Tab Switcher
+  const [mobileTab, setMobileTab] = useState<"trade" | "orderbook" | "markets">("trade");
 
   // Derived Order Book from selected market's live depth
   const orderBook: OrderBookData = useMemo(() => {
@@ -210,9 +215,6 @@ function TradingTerminalContent() {
       {/* Universal Floating Pill Navbar */}
       <Navbar
         fluid={true}
-        walletAddress={walletAddress}
-        balanceUSDC={balanceUSDC}
-        onConnectWallet={walletAddress ? disconnect : connect}
         onOpenFaucet={() => setIsFaucetOpen(true)}
       />
 
@@ -240,11 +242,8 @@ function TradingTerminalContent() {
         </div>
       )}
 
-      {/* Active Market Info Bar */}
-      {selectedMarket && <MarketInfoBar market={selectedMarket} />}
-
-      {/* Main Terminal Workspace (3-Column Layout) */}
-      <div className="flex-1 px-4 py-4 sm:px-6">
+      {/* Main Terminal Workspace (Responsive Hierarchy: Mobile shows Market Info on top, Desktop shows 3 columns on top) */}
+      <div className="flex-1 px-3 py-3 sm:px-6 sm:py-4 flex flex-col">
         {isMarketsLoading && markets.length === 0 ? (
           <div className="h-[480px] flex items-center justify-center rounded-2xl border border-border/40 bg-card/50">
             <div className="flex flex-col items-center gap-2 text-muted-foreground text-xs font-mono">
@@ -253,59 +252,150 @@ function TradingTerminalContent() {
             </div>
           </div>
         ) : selectedMarket ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            {/* Left: Markets Switcher Sidebar (3 cols) */}
-            <div className="lg:col-span-3 h-[420px] lg:h-[480px]">
-              <MarketsSidebar
-                markets={markets}
-                activeMarketId={selectedMarket.id}
-                onSelectMarket={(m) => setSelectedMarketId(m.id)}
-              />
-            </div>
-
-            {/* Center: Live Order Book Panel (5 cols) */}
-            <div className="lg:col-span-5 h-[420px] lg:h-[480px]">
-              <OrderBookPanel
-                orderBook={orderBook}
-                onSelectPrice={(p) => setSelectedPrice(p)}
-              />
-            </div>
-
-            {/* Right: Order Entry Ticket (4 cols) */}
-            <div className="lg:col-span-4 h-auto lg:h-[480px]">
-              <OrderEntryPanel
+          <>
+            {/* Active Market Info Bar (Mobile: order-1 on top; Desktop: lg:order-2 below trading columns) */}
+            <div className="order-1 lg:order-2 mb-3 lg:mb-0 lg:mt-4 rounded-2xl overflow-hidden border border-border/60 bg-card/40 shadow-xs">
+              <MarketInfoBar
                 market={selectedMarket}
-                userBalanceUSDC={balanceUSDC}
-                initialPrice={selectedPrice}
-                walletClient={walletClient}
-                walletAddress={walletAddress}
-                onOrderPlaced={handleOrderPlaced}
+                onOpenMarketModal={() => setIsMarketSelectModalOpen(true)}
               />
             </div>
-          </div>
+
+            {/* Trading Workspace Container (Mobile: order-2; Desktop: lg:order-1) */}
+            <div className="order-2 lg:order-1">
+              {/* Mobile View Switcher (Only on small screens < lg) */}
+              <div className="flex lg:hidden items-center justify-between gap-2 mb-3 bg-secondary/50 p-1.5 rounded-2xl border border-border/50">
+                <div className="flex items-center gap-1 w-full">
+                  <button
+                    type="button"
+                    onClick={() => setMobileTab("trade")}
+                    className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                      mobileTab === "trade"
+                        ? "bg-card text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Trade
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileTab("orderbook")}
+                    className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                      mobileTab === "orderbook"
+                        ? "bg-card text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Order Book
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileTab("markets")}
+                    className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                      mobileTab === "markets"
+                        ? "bg-card text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Markets
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsMarketSelectModalOpen(true)}
+                  className="shrink-0 size-8 flex items-center justify-center rounded-xl bg-card border border-border/60 text-foreground hover:bg-secondary transition-colors cursor-pointer"
+                  title="Search & select market"
+                >
+                  <Search className="size-3.5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                {/* Left: Markets Switcher Sidebar (3 cols) */}
+                <div
+                  className={`lg:col-span-3 h-[420px] lg:h-[480px] ${
+                    mobileTab === "markets" ? "block" : "hidden lg:block"
+                  }`}
+                >
+                  <MarketsSidebar
+                    markets={markets}
+                    activeMarketId={selectedMarket.id}
+                    onSelectMarket={(m) => {
+                      setSelectedMarketId(m.id);
+                      setMobileTab("trade");
+                    }}
+                    onOpenMarketModal={() => setIsMarketSelectModalOpen(true)}
+                  />
+                </div>
+
+                {/* Center: Live Order Book Panel (5 cols) */}
+                <div
+                  className={`lg:col-span-5 h-[420px] lg:h-[480px] ${
+                    mobileTab === "orderbook" ? "block" : "hidden lg:block"
+                  }`}
+                >
+                  <OrderBookPanel
+                    orderBook={orderBook}
+                    onSelectPrice={(p) => {
+                      setSelectedPrice(p);
+                      setMobileTab("trade");
+                    }}
+                  />
+                </div>
+
+                {/* Right: Order Entry Ticket (4 cols) */}
+                <div
+                  className={`lg:col-span-4 h-auto lg:h-[480px] ${
+                    mobileTab === "trade" ? "block" : "hidden lg:block"
+                  }`}
+                >
+                  <OrderEntryPanel
+                    market={selectedMarket}
+                    userBalanceUSDC={balanceUSDC}
+                    initialPrice={selectedPrice}
+                    walletClient={walletClient}
+                    walletAddress={walletAddress}
+                    onOrderPlaced={handleOrderPlaced}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom: Comprehensive Positions & Social Panel */}
+            <div className="order-3 mt-4">
+              <UserPositionsPanel
+                positions={positions}
+                openOrders={openOrders}
+                settledPositions={settledPositions}
+                walletAddress={walletAddress}
+                walletClient={walletClient}
+                onSharePnl={handleSharePnl}
+                onShareCopy={() => setIsCopyOpen(true)}
+                onCancelOrder={handleCancelOrder}
+                onRedeemWinnings={handleRedeemWinnings}
+              />
+            </div>
+          </>
         ) : (
           <div className="h-[480px] flex items-center justify-center rounded-2xl border border-border/40 bg-card/50 text-muted-foreground text-xs">
             No active binary markets found on Somnia Shannon testnet.
           </div>
         )}
-
-        {/* Bottom: Comprehensive Positions & Social Panel */}
-        <div className="mt-4">
-          <UserPositionsPanel
-            positions={positions}
-            openOrders={openOrders}
-            settledPositions={settledPositions}
-            walletAddress={walletAddress}
-            walletClient={walletClient}
-            onSharePnl={handleSharePnl}
-            onShareCopy={() => setIsCopyOpen(true)}
-            onCancelOrder={handleCancelOrder}
-            onRedeemWinnings={handleRedeemWinnings}
-          />
-        </div>
       </div>
 
       {/* Modals */}
+      <MarketSelectModal
+        isOpen={isMarketSelectModalOpen}
+        onClose={() => setIsMarketSelectModalOpen(false)}
+        markets={markets}
+        activeMarketId={selectedMarket?.id || ""}
+        onSelectMarket={(m) => {
+          setSelectedMarketId(m.id);
+          setMobileTab("trade");
+        }}
+      />
+
       <PnlShareModal
         isOpen={isPnlOpen}
         onClose={() => setIsPnlOpen(false)}

@@ -1,0 +1,11 @@
+{
+  "name": "somnia-flurf",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --cwd application dev",
+    "build": "bun run --cwd application build",
+    "start": "bun run --cwd application start",
+    "lint": "bun run --cwd application lint"
+  }
+}

@@ -116,11 +116,7 @@ export default function FaucetPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground antialiased selection:bg-emerald-500/20 selection:text-emerald-600">
       {/* Navbar */}
-      <Navbar
-        onConnectWallet={flurfAddress ? disconnect : connect}
-        walletAddress={flurfAddress}
-        balanceUSDC={balanceUSDC}
-      />
+      <Navbar />
 
       <main className="flex-1 py-12 sm:py-16">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">

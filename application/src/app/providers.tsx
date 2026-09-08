@@ -15,23 +15,28 @@ export function FlurfProviders({ children }: { children: React.ReactNode }) {
             refetchOnWindowFocus: false,
           },
         },
-      })
+      }),
   );
 
   return (
     <QueryClientProvider client={queryClient}>
       <PrivyProvider
-        appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ""}
+        appId={
+          process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cl00000000000000000000000"
+        }
         config={{
           defaultChain: somniaShannon,
           supportedChains: [somniaShannon],
           appearance: {
             theme: "dark",
-            accentColor: "#7c3aed",
+            accentColor: "#000",
             showWalletLoginFirst: true,
           },
           embeddedWallets: {
-            createOnLogin: "users-without-wallets",
+            // showWalletUIs: true,
+            ethereum: {
+              createOnLogin: "users-without-wallets",
+            },
           },
         }}
       >

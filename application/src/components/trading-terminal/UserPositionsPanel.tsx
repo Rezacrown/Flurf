@@ -5,7 +5,7 @@ import React, { useState, useEffect } from "react";
 
 // 2. Third-Party Libraries
 import confetti from "canvas-confetti";
-import { TrendingUp, X, Check, Loader2, Sparkles, ExternalLink, Clock } from "lucide-react";
+import { TrendingUp, X, Check, Loader2, Sparkles, ExternalLink, Clock, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 // 3. UI Components
@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 
 // 4. Types
 import type { WalletClient } from "viem";
-import type { UserPosition, OpenOrder, SettledPosition, TradeHistoryItem } from "@/domain/types";
+import type { UserPosition, OpenOrder, SettledPosition, TradeHistoryItem, MarketOutcome } from "@/domain/types";
 
 // ---------------------------------------------------------------------------
 // Real-Time Expiry Countdown Component
@@ -40,59 +40,54 @@ const ExpiryCountdownBadge: React.FC<{ expiryTimestamp?: number; fallback?: stri
       } else if (diff < 60) {
         setTimeLeft(`${diff}s left`);
       } else if (diff < 3600) {
-        const m = Math.floor(diff / 60);
-        const s = diff % 60;
-        setTimeLeft(`${m}m ${s}s left`);
-      } else if (diff < 86400) {
-        const h = Math.floor(diff / 3600);
-        const m = Math.floor((diff % 3600) / 60);
-        setTimeLeft(`${h}h ${m}m left`);
+        const mins = Math.floor(diff / 60);
+        const secs = diff % 60;
+        setTimeLeft(`${mins}m ${secs}s left`);
       } else {
-        const d = Math.floor(diff / 86400);
-        const h = Math.floor((diff % 86400) / 3600);
-        setTimeLeft(`${d}d ${h}h left`);
+        const hours = Math.floor(diff / 3600);
+        const mins = Math.floor((diff % 3600) / 60);
+        setTimeLeft(`${hours}h ${mins}m left`);
       }
     };
 
     update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
   }, [expiryTimestamp, fallback]);
 
   const isExpired = timeLeft === "Expired";
 
   return (
     <span
-      className={`inline-flex items-center gap-1 font-mono text-[11px] ${
+      className={`inline-flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.5 rounded ${
         isExpired
-          ? "text-amber-500 font-semibold"
-          : "text-muted-foreground font-medium"
+          ? "bg-rose-500/10 text-rose-500 font-semibold border border-rose-500/20"
+          : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
       }`}
     >
-      <Clock className="size-3 text-muted-foreground/80 shrink-0" />
-      <span>{timeLeft}</span>
+      <Clock className="size-2.5 shrink-0" />
+      {timeLeft}
     </span>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Block Explorer Transaction Link Component
+// Explorer Tx Link Component
 // ---------------------------------------------------------------------------
-const ExplorerTxLink: React.FC<{ txHash?: string; label?: string }> = ({ txHash, label }) => {
-  if (!txHash) {
-    return <span className="text-muted-foreground/40 font-mono text-[10px]">-</span>;
-  }
-  const truncated = label || `${txHash.slice(0, 6)}...${txHash.slice(-4)}`;
+const ExplorerTxLink: React.FC<{ txHash?: string }> = ({ txHash }) => {
+  if (!txHash) return <span className="text-muted-foreground/40 font-mono text-[10px]">-</span>;
+
+  const short = `${txHash.slice(0, 6)}...${txHash.slice(-4)}`;
   return (
     <a
       href={`https://shannon-explorer.somnia.network/tx/${txHash}`}
       target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 hover:underline cursor-pointer"
-      title="View on Somnia Shannon Block Explorer"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1 font-mono text-[10px] text-muted-foreground hover:text-foreground transition-colors group cursor-pointer"
+      title={`View on Somnia Explorer: ${txHash}`}
     >
-      <span>{truncated}</span>
-      <ExternalLink className="size-2.5 shrink-0" />
+      <span className="group-hover:underline">{short}</span>
+      <ExternalLink className="size-2.5 opacity-60 group-hover:opacity-100" />
     </a>
   );
 };
@@ -156,6 +151,75 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
     } catch {}
 
     onShareCopy(pos);
+  };
+
+  const handleCopyOrderLink = async (ord: OpenOrder) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://flurf.trade";
+    const sideClean = (ord.side.includes("YES") ? "YES" : "NO") as MarketOutcome;
+    const shareUrl = `${origin}/app?copy=true&marketId=${encodeURIComponent(
+      ord.symbol || ""
+    )}&symbol=${encodeURIComponent(ord.symbol || "")}&side=${sideClean}&price=${ord.price}&trader=${
+      walletAddress || ""
+    }&tx=${ord.txHash || ""}`;
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedPosId(ord.id);
+      toast.success("Copy Order Link copied!", {
+        description: `Limit order link for ${ord.side} @ $${ord.price.toFixed(2)} copied to clipboard.`,
+      });
+      setTimeout(() => setCopiedPosId(null), 2500);
+    } catch {}
+
+    onShareCopy({
+      id: ord.id,
+      marketId: ord.symbol || "",
+      symbol: ord.symbol || "Market Order",
+      question: ord.symbol || "Prediction Market Order",
+      outcome: sideClean,
+      shares: ord.amount,
+      avgEntryPrice: ord.price,
+      currentPrice: ord.price,
+      currentValue: ord.price * ord.amount,
+      investedAmount: ord.price * ord.amount,
+      roiPercent: 0,
+      txHash: ord.txHash,
+    });
+  };
+
+  const handleShareSettledPnl = (sp: SettledPosition) => {
+    onSharePnl({
+      id: sp.marketId,
+      marketId: sp.marketId,
+      symbol: sp.question.slice(0, 24),
+      question: sp.question,
+      outcome: sp.winningOutcome,
+      shares: sp.shares,
+      avgEntryPrice: 0.5,
+      currentPrice: 1.0,
+      currentValue: sp.redeemableUSDC,
+      investedAmount: sp.shares * 0.5,
+      roiPercent: 100,
+      txHash: sp.txHash,
+    });
+  };
+
+  const handleShareHistoryPnl = (th: TradeHistoryItem) => {
+    const sideClean = (th.side.includes("YES") ? "YES" : "NO") as MarketOutcome;
+    onSharePnl({
+      id: th.id,
+      marketId: th.symbol,
+      symbol: th.symbol,
+      question: th.symbol,
+      outcome: sideClean,
+      shares: th.shares,
+      avgEntryPrice: th.price,
+      currentPrice: th.price,
+      currentValue: th.amount,
+      investedAmount: th.amount,
+      roiPercent: 0,
+      txHash: th.txHash,
+    });
   };
 
   return (
@@ -471,15 +535,24 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                       </div>
                     )}
 
-                    <div className="pt-1">
+                    <div className="pt-1 flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCopyOrderLink(ord)}
+                        className="flex-1 rounded-lg text-xs h-8 border-violet-500/30 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 font-medium cursor-pointer"
+                      >
+                        <Sparkles className="size-3.5 mr-1 text-violet-500" />
+                        Share Copy
+                      </Button>
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => onCancelOrder(ord.id)}
-                        className="w-full rounded-lg text-xs h-8 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 border border-rose-500/20 cursor-pointer"
+                        className="flex-1 rounded-lg text-xs h-8 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 border border-rose-500/20 cursor-pointer"
                       >
                         <X className="size-3.5 mr-1" />
-                        Cancel Order
+                        Cancel
                       </Button>
                     </div>
                   </div>
@@ -532,15 +605,27 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                           <ExplorerTxLink txHash={ord.txHash} />
                         </td>
                         <td className="py-3 text-right">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => onCancelOrder(ord.id)}
-                            className="rounded-lg text-[10px] h-7 px-2 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 cursor-pointer"
-                          >
-                            <X className="size-3 mr-1" />
-                            Cancel
-                          </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleCopyOrderLink(ord)}
+                              className="rounded-lg text-[10px] h-7 px-2 border-violet-500/30 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 font-medium transition-all cursor-pointer"
+                              title="Share this order as a copy trade link"
+                            >
+                              <Sparkles className="size-3 mr-1 text-violet-500" />
+                              Share Copy
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => onCancelOrder(ord.id)}
+                              className="rounded-lg text-[10px] h-7 px-2 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 cursor-pointer"
+                            >
+                              <X className="size-3 mr-1" />
+                              Cancel
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -612,7 +697,16 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                           </div>
                         )}
 
-                        <div className="pt-1">
+                        <div className="pt-1 space-y-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleShareSettledPnl(sp)}
+                            className="w-full rounded-xl text-xs h-8 bg-slate-900 text-white hover:bg-slate-800 border-slate-800 cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <TrendingUp className="size-3 text-emerald-400" />
+                            Share Win Badge
+                          </Button>
                           {sp.isRedeemed ? (
                             <div className="flex items-center justify-center gap-1.5 py-2 text-xs text-muted-foreground bg-secondary/40 rounded-lg">
                               <Check className="size-3.5 text-emerald-500" />
@@ -676,28 +770,40 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                               <ExplorerTxLink txHash={sp.txHash} />
                             </td>
                             <td className="py-3 text-right">
-                              {sp.isRedeemed ? (
-                                <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                                  <Check className="size-3 mr-1 text-emerald-500" />
-                                  Redeemed
-                                </Badge>
-                              ) : (
+                              <div className="flex items-center justify-end gap-1.5">
                                 <Button
                                   size="sm"
-                                  onClick={() => handleRedeem(sp)}
-                                  disabled={redeemingId === sp.marketId}
-                                  className="rounded-xl text-[10px] h-7 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold cursor-pointer"
+                                  variant="outline"
+                                  onClick={() => handleShareSettledPnl(sp)}
+                                  className="rounded-xl text-[10px] h-7 px-2.5 bg-slate-900 text-white hover:bg-slate-800 border-slate-800 cursor-pointer"
+                                  title="Generate PnL / Win Badge"
                                 >
-                                  {redeemingId === sp.marketId ? (
-                                    <>
-                                      <Loader2 className="size-3 animate-spin mr-1" />
-                                      Redeeming...
-                                    </>
-                                  ) : (
-                                    "Redeem 1:1"
-                                  )}
+                                  <TrendingUp className="size-3 mr-1 text-emerald-400" />
+                                  Share Badge
                                 </Button>
-                              )}
+                                {sp.isRedeemed ? (
+                                  <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                    <Check className="size-3 mr-1 text-emerald-500" />
+                                    Redeemed
+                                  </Badge>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleRedeem(sp)}
+                                    disabled={redeemingId === sp.marketId}
+                                    className="rounded-xl text-[10px] h-7 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold cursor-pointer"
+                                  >
+                                    {redeemingId === sp.marketId ? (
+                                      <>
+                                        <Loader2 className="size-3 animate-spin mr-1" />
+                                        Redeeming...
+                                      </>
+                                    ) : (
+                                      "Redeem 1:1"
+                                    )}
+                                  </Button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -755,6 +861,16 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleShareHistoryPnl(th)}
+                              className="rounded-md text-[9px] h-5 px-1.5 border-violet-500/30 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 cursor-pointer"
+                              title="Share trade badge"
+                            >
+                              <TrendingUp className="size-2.5 mr-0.5 text-emerald-500" />
+                              Badge
+                            </Button>
                             <Badge variant="outline" className="text-[9px]">
                               {th.status}
                             </Badge>
@@ -778,6 +894,7 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                           <th className="pb-2 text-right">Status</th>
                           <th className="pb-2 text-right">Time</th>
                           <th className="pb-2 text-right">Explorer Tx</th>
+                          <th className="pb-2 text-right">Social</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/30">
@@ -830,6 +947,18 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                               ) : (
                                 <span className="text-muted-foreground/50 font-mono text-[10px]">-</span>
                               )}
+                            </td>
+                            <td className="py-2.5 text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleShareHistoryPnl(th)}
+                                className="rounded-lg text-[10px] h-6 px-2 border-violet-500/30 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 cursor-pointer"
+                                title="Share trade badge"
+                              >
+                                <TrendingUp className="size-2.5 mr-1 text-emerald-500" />
+                                Badge
+                              </Button>
                             </td>
                           </tr>
                         ))}

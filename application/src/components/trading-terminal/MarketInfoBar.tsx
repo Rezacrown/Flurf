@@ -4,10 +4,12 @@
 import React, { useEffect, useState } from "react";
 
 // 2. Third-Party Libraries
-import { Clock, ExternalLink, Activity, DollarSign, ChevronDown } from "lucide-react";
+import { Clock, ExternalLink, Activity, DollarSign, ChevronDown, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 
 // 3. UI Components
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 // 4. Types
 import type { BinaryMarket } from "@/domain/types";
@@ -15,10 +17,23 @@ import type { BinaryMarket } from "@/domain/types";
 interface MarketInfoBarProps {
   market: BinaryMarket;
   onOpenMarketModal?: () => void;
+  onShareMarket?: () => void;
 }
 
-export const MarketInfoBar: React.FC<MarketInfoBarProps> = ({ market, onOpenMarketModal }) => {
+export const MarketInfoBar: React.FC<MarketInfoBarProps> = ({ market, onOpenMarketModal, onShareMarket }) => {
   const [timeLeft, setTimeLeft] = useState<string>("14m 22s");
+
+  const handleShareMarket = async () => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://flurf.trade";
+    const shareUrl = `${origin}/app?copy=true&marketId=${market.id}&symbol=${encodeURIComponent(market.symbol)}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Market Link Copied!", {
+        description: `Share with friends to trade ${market.symbol} together.`,
+      });
+    } catch {}
+    if (onShareMarket) onShareMarket();
+  };
 
   useEffect(() => {
     const updateCountdown = () => {
@@ -144,6 +159,18 @@ export const MarketInfoBar: React.FC<MarketInfoBarProps> = ({ market, onOpenMark
           >
             <ExternalLink className="size-3.5" />
           </a>
+
+          {/* Share Market & Copy Trade Link */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleShareMarket}
+            className="rounded-xl text-xs h-8 px-2.5 border-violet-500/30 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 font-medium transition-all cursor-pointer flex items-center gap-1.5"
+            title="Share this market & copy trade link"
+          >
+            <Sparkles className="size-3.5 text-violet-500" />
+            <span className="hidden sm:inline">Share Market</span>
+          </Button>
         </div>
       </div>
     </div>

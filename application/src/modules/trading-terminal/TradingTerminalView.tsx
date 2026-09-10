@@ -205,6 +205,7 @@ export function TradingTerminalView() {
               <MarketInfoBar
                 market={selectedMarket}
                 onOpenMarketModal={() => modals.setIsMarketSelectModalOpen(true)}
+                onShareMarket={modals.openCopyModal}
               />
             </div>
 

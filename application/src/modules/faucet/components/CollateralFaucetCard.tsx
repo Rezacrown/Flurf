@@ -4,7 +4,7 @@
 import React from "react";
 
 // 2. Third-Party Libraries
-import { Droplets, Check, Copy, Loader2, AlertCircle, RefreshCw, Zap } from "lucide-react";
+import { Droplets, Check, Copy, Loader2, AlertCircle, RefreshCw, Zap, Wallet } from "lucide-react";
 
 // 3. Infrastructure & Constants
 import { DREAMDEX_ADDRESSES } from "@/infrastructure/contract-addresses";
@@ -44,6 +44,8 @@ export const CollateralFaucetCard: React.FC<CollateralFaucetCardProps> = ({
   flurfAddress,
   onConnectWallet,
 }) => {
+  const isConnected = Boolean(flurfAddress);
+
   return (
     <Card className="rounded-3xl border-border/70 bg-card/90 shadow-lg backdrop-blur-sm flex flex-col justify-between">
       <CardHeader>
@@ -61,7 +63,7 @@ export const CollateralFaucetCard: React.FC<CollateralFaucetCardProps> = ({
           tUSDC Collateral Token
         </CardTitle>
         <CardDescription className="text-xs text-muted-foreground">
-          Official ERC-20 collateral used to place binary orders and mint outcome sets on DreamDEX.
+          Official on-chain testnet collateral credited directly to your connected wallet (msg.sender).
         </CardDescription>
       </CardHeader>
 
@@ -78,14 +80,16 @@ export const CollateralFaucetCard: React.FC<CollateralFaucetCardProps> = ({
                 })}{" "}
                 tUSDC
               </span>
-              <button
-                type="button"
-                onClick={() => onRefreshBalance(recipientInput)}
-                title="Refresh live on-chain balance"
-                className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              >
-                <RefreshCw className={`size-3 ${isLoadingBalance ? "animate-spin" : ""}`} />
-              </button>
+              {isConnected && (
+                <button
+                  type="button"
+                  onClick={() => onRefreshBalance(recipientInput || flurfAddress || "")}
+                  title="Refresh live on-chain balance"
+                  className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <RefreshCw className={`size-3 ${isLoadingBalance ? "animate-spin" : ""}`} />
+                </button>
+              )}
             </div>
           </div>
           <div className="flex justify-between">
@@ -95,7 +99,7 @@ export const CollateralFaucetCard: React.FC<CollateralFaucetCardProps> = ({
             </span>
           </div>
           <div className="flex justify-between items-center pt-1 border-t border-border/30">
-            <span className="text-muted-foreground">Contract:</span>
+            <span className="text-muted-foreground">Contract (TestUSDC):</span>
             <button
               type="button"
               onClick={() => onCopyAddress(DREAMDEX_ADDRESSES.testnetCollateral)}
@@ -115,9 +119,13 @@ export const CollateralFaucetCard: React.FC<CollateralFaucetCardProps> = ({
             className="text-xs font-medium text-foreground flex justify-between"
           >
             <span>Recipient Address</span>
-            {flurfAddress && (
-              <span className="text-[10px] text-muted-foreground">
-                (Auto-filled with connected wallet)
+            {isConnected ? (
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                (Connected Wallet)
+              </span>
+            ) : (
+              <span className="text-[10px] text-amber-600 dark:text-amber-400">
+                (Please connect wallet)
               </span>
             )}
           </label>
@@ -126,7 +134,7 @@ export const CollateralFaucetCard: React.FC<CollateralFaucetCardProps> = ({
             type="text"
             value={recipientInput}
             onChange={(e) => onRecipientChange(e.target.value)}
-            placeholder="0x..."
+            placeholder={isConnected ? "0x..." : "Connect wallet to fill address automatically"}
             className="font-mono text-xs rounded-xl bg-background/60 border-border/80 h-10"
             disabled={isMinting}
           />
@@ -145,23 +153,33 @@ export const CollateralFaucetCard: React.FC<CollateralFaucetCardProps> = ({
       </CardContent>
 
       <CardFooter className="pt-2">
-        <Button
-          onClick={onClaim}
-          disabled={isMinting || !recipientInput}
-          className="w-full h-11 rounded-2xl bg-foreground text-background font-semibold text-xs hover:opacity-90 transition-all cursor-pointer shadow-md"
-        >
-          {isMinting ? (
-            <>
-              <Loader2 className="size-4 mr-2 animate-spin" />
-              Minting 1,000 tUSDC on Somnia...
-            </>
-          ) : (
-            <>
-              <Zap className="size-4 mr-1.5 text-amber-400" />
-              Claim 1,000 tUSDC Collateral
-            </>
-          )}
-        </Button>
+        {!isConnected ? (
+          <Button
+            onClick={onConnectWallet}
+            className="w-full h-11 rounded-2xl bg-foreground text-background font-semibold text-xs hover:opacity-90 transition-all cursor-pointer shadow-md"
+          >
+            <Wallet className="size-4 mr-1.5" />
+            Connect Wallet to Claim
+          </Button>
+        ) : (
+          <Button
+            onClick={onClaim}
+            disabled={isMinting}
+            className="w-full h-11 rounded-2xl bg-foreground text-background font-semibold text-xs hover:opacity-90 transition-all cursor-pointer shadow-md"
+          >
+            {isMinting ? (
+              <>
+                <Loader2 className="size-4 mr-2 animate-spin" />
+                Minting 1,000 tUSDC on Somnia...
+              </>
+            ) : (
+              <>
+                <Zap className="size-4 mr-1.5 text-amber-400" />
+                Claim 1,000 tUSDC Collateral
+              </>
+            )}
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );

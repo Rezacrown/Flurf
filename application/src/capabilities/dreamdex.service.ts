@@ -439,36 +439,52 @@ export async function claimTUSDCFaucet(
   const checksumRecipient = toChecksumAddress(recipient);
   const rawAmount = parseUSDC(amount);
 
+  // Auto switch chain if walletClient supports it
+  if (walletClient?.switchChain) {
+    try {
+      await walletClient.switchChain({ id: somniaShannon.id });
+    } catch {
+      // Non-blocking: wallet may already be on Somnia Shannon
+    }
+  }
+
   try {
     const res = await somniaExchange.trader.faucet({
       amount: rawAmount,
     });
-    return res.hash;
-  } catch {
-    const account = walletClient?.account ?? checksumRecipient;
-    const hash: `0x${string}` = await walletClient.writeContract({
+    if (res?.hash) {
+      return res.hash;
+    }
+  } catch (sdkErr) {
+    console.warn("SDK trader.faucet fallback to direct Viem call:", sdkErr);
+  }
+
+  // Direct Viem writeContract fallback with explicit gas limit for Somnia Shannon
+  const account = walletClient?.account ?? checksumRecipient;
+  const hash: `0x${string}` = await walletClient.writeContract({
+    address: DREAMDEX_ADDRESSES.testnetCollateral,
+    abi: tusdcAbi,
+    functionName: "faucet",
+    args: [rawAmount],
+    account,
+    chain: somniaShannon,
+    gas: 150_000n,
+  });
+
+  const senderAddress = typeof account === "string" ? account : account?.address;
+  if (senderAddress && senderAddress.toLowerCase() !== checksumRecipient.toLowerCase()) {
+    await publicClient.waitForTransactionReceipt({ hash });
+    const transferHash: `0x${string}` = await walletClient.writeContract({
       address: DREAMDEX_ADDRESSES.testnetCollateral,
       abi: tusdcAbi,
-      functionName: "faucet",
-      args: [rawAmount],
+      functionName: "transfer",
+      args: [checksumRecipient, rawAmount],
       account,
       chain: somniaShannon,
+      gas: 100_000n,
     });
-
-    const senderAddress = typeof account === "string" ? account : account?.address;
-    if (senderAddress && senderAddress.toLowerCase() !== checksumRecipient.toLowerCase()) {
-      await publicClient.waitForTransactionReceipt({ hash });
-      const transferHash: `0x${string}` = await walletClient.writeContract({
-        address: DREAMDEX_ADDRESSES.testnetCollateral,
-        abi: tusdcAbi,
-        functionName: "transfer",
-        args: [checksumRecipient, rawAmount],
-        account,
-        chain: somniaShannon,
-      });
-      return transferHash;
-    }
-
-    return hash;
+    return transferHash;
   }
+
+  return hash;
 }

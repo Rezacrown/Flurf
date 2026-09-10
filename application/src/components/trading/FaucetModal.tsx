@@ -31,6 +31,8 @@ export const FaucetModal: React.FC<FaucetModalProps> = ({
     isMinting: isClaiming,
     txHash: claimedTx,
     errorMessage,
+    isConnected,
+    connect,
     handleClaimUSDC,
   } = useFaucetClaim();
 
@@ -113,8 +115,11 @@ export const FaucetModal: React.FC<FaucetModalProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="faucet-modal-recipient" className="text-xs font-medium text-foreground">
-                Recipient Wallet Address
+              <label htmlFor="faucet-modal-recipient" className="text-xs font-medium text-foreground flex justify-between">
+                <span>Recipient Wallet Address</span>
+                {isConnected && (
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">(Connected)</span>
+                )}
               </label>
               <Input
                 id="faucet-modal-recipient"
@@ -144,20 +149,29 @@ export const FaucetModal: React.FC<FaucetModalProps> = ({
             <Button variant="outline" onClick={onClose} className="rounded-xl text-xs">
               Cancel
             </Button>
-            <Button
-              onClick={handleClaim}
-              disabled={isClaiming}
-              className="rounded-xl text-xs font-semibold px-5"
-            >
-              {isClaiming ? (
-                <>
-                  <Loader2 className="size-3.5 animate-spin mr-1.5" />
-                  Minting on Somnia...
-                </>
-              ) : (
-                "Claim 1,000 tUSDC"
-              )}
-            </Button>
+            {!isConnected ? (
+              <Button
+                onClick={connect}
+                className="rounded-xl text-xs font-semibold px-5"
+              >
+                Connect Wallet to Claim
+              </Button>
+            ) : (
+              <Button
+                onClick={handleClaim}
+                disabled={isClaiming}
+                className="rounded-xl text-xs font-semibold px-5"
+              >
+                {isClaiming ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin mr-1.5" />
+                    Minting on Somnia...
+                  </>
+                ) : (
+                  "Claim 1,000 tUSDC"
+                )}
+              </Button>
+            )}
           </DialogFooter>
         )}
       </DialogContent>

@@ -21,14 +21,19 @@ export function FaucetView() {
     recipientInput,
     setRecipientInput,
     balanceUSDC,
+    balanceSTT,
     isLoadingBalance,
+    isLoadingSTT,
     isMinting,
     txHash,
     copiedContract,
+    copiedWallet,
     errorMessage,
     refreshBalance,
+    refreshSTTBalance,
     handleClaimUSDC,
     handleCopyAddress,
+    handleCopyWallet,
     connect,
   } = useFaucetClaim();
 
@@ -75,7 +80,14 @@ export function FaucetView() {
               onConnectWallet={connect}
             />
 
-            <GasFaucetCard />
+            <GasFaucetCard
+              flurfAddress={flurfAddress}
+              balanceSTT={balanceSTT}
+              isLoadingSTT={isLoadingSTT}
+              onRefreshSTT={refreshSTTBalance}
+              copiedWallet={copiedWallet}
+              onCopyWallet={handleCopyWallet}
+            />
           </div>
 
           {/* Transaction Success Banner */}

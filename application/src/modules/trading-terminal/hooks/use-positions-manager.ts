@@ -147,6 +147,7 @@ export function usePositionsManager({
                 contractOrderId: o.orderId.toString(),
                 marketId: m.id,
                 symbol: m.symbol,
+                question: m.question || m.symbol,
                 side: o.isBid ? "BUY_YES" : "BUY_NO",
                 orderType: "LIMIT",
                 price: o.price,
@@ -603,9 +604,15 @@ export function usePositionsManager({
     openOrders,
     settledPositions,
     tradeHistory,
+    onchainBalances,
     handleOrderPlaced,
     handleCopyExecuted,
     handleCancelOrder,
     handleRedeemWinnings,
+    refetchPositions: () => {
+      refetchIndexer();
+      refetchOnchainOutcomes();
+      refetchOnchainOrders();
+    },
   };
 }

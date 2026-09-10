@@ -31,15 +31,100 @@ export interface FlurfWalletContextValue {
 export function useFlurfWallet(): FlurfWalletContextValue {
   const { login, logout, authenticated, user, ready } = usePrivy();
   const { wallets } = useWallets();
-  const { connect: openActiveWalletModal, setActiveWallet } = useActiveWallet();
+  const { wallet: currentActiveWallet, connect: openActiveWalletModal, setActiveWallet } = useActiveWallet();
 
   const [walletClient, setWalletClient] = useState<WalletClient | null>(null);
+  const [switchedAddress, setSwitchedAddress] = useState<string | null>(null);
 
   // STRICT: Only consider connected if Privy is ready and authenticated with a valid user
   const isConnected = Boolean(ready && authenticated && user);
-  const activeWallet = isConnected && wallets.length > 0 ? wallets[0] : null;
-  const rawAddress = isConnected ? (user?.wallet?.address || activeWallet?.address || null) : null;
+
+  // Match the switched address if any, or active wallet from Privy, or the first connected wallet
+  const matchingWallet = switchedAddress
+    ? wallets.find((w) => w.address.toLowerCase() === switchedAddress.toLowerCase())
+    : null;
+  const activeWallet = isConnected
+    ? ((matchingWallet as any) || currentActiveWallet || (wallets.length > 0 ? wallets[0] : null))
+    : null;
+
+  // Prioritize active wallet / switched wallet over Privy's stale initial user.wallet.address
+  const rawAddress = isConnected
+    ? (switchedAddress ||
+       (currentActiveWallet as any)?.address ||
+       activeWallet?.address ||
+       user?.wallet?.address ||
+       null)
+    : null;
   const address = rawAddress ? (getAddress(rawAddress.toLowerCase()) as `0x${string}`) : null;
+
+  // 1. Listen to accountsChanged on window.ethereum (MetaMask, Rabby, etc.)
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.ethereum) return;
+
+    const handleAccountsChanged = (accounts: unknown) => {
+      if (Array.isArray(accounts) && accounts.length > 0 && typeof accounts[0] === "string") {
+        const newAcc = accounts[0];
+        setSwitchedAddress(newAcc);
+        const matched = wallets.find(
+          (w) => w.address.toLowerCase() === newAcc.toLowerCase()
+        );
+        if (matched) {
+          try {
+            setActiveWallet(matched as any);
+          } catch {}
+        }
+      } else {
+        setSwitchedAddress(null);
+      }
+    };
+
+    const eth = window.ethereum as any;
+    eth.on?.("accountsChanged", handleAccountsChanged);
+
+    return () => {
+      eth.removeListener?.("accountsChanged", handleAccountsChanged);
+    };
+  }, [wallets, setActiveWallet]);
+
+  // 2. Also listen on the Ethereum provider obtained from activeWallet
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function attachProviderListener() {
+      if (!activeWallet) return;
+      try {
+        const provider = await activeWallet.getEthereumProvider();
+        if (isCancelled || !provider) return;
+
+        const handleAccountsChanged = (accounts: unknown) => {
+          if (Array.isArray(accounts) && accounts.length > 0 && typeof accounts[0] === "string") {
+            const newAcc = accounts[0];
+            setSwitchedAddress(newAcc);
+            const matched = wallets.find(
+              (w) => w.address.toLowerCase() === newAcc.toLowerCase()
+            );
+            if (matched) {
+              try {
+                setActiveWallet(matched as any);
+              } catch {}
+            }
+          }
+        };
+
+        provider.on?.("accountsChanged", handleAccountsChanged);
+
+        return () => {
+          provider.removeListener?.("accountsChanged", handleAccountsChanged);
+        };
+      } catch {}
+    }
+
+    const cleanupPromise = attachProviderListener();
+    return () => {
+      isCancelled = true;
+      cleanupPromise.then((cleanup) => cleanup?.());
+    };
+  }, [activeWallet, wallets, setActiveWallet]);
 
   // Sync active wallet into Privy active wallet store
   useEffect(() => {
@@ -86,6 +171,12 @@ export function useFlurfWallet(): FlurfWalletContextValue {
     syncExchangeSigner(walletClient);
   }, [walletClient]);
 
+  const handleDisconnect = async () => {
+    setSwitchedAddress(null);
+    setWalletClient(null);
+    await logout();
+  };
+
   return {
     address,
     isConnected: Boolean(isConnected && address),
@@ -100,7 +191,7 @@ export function useFlurfWallet(): FlurfWalletContextValue {
       }
       openActiveWalletModal();
     },
-    disconnect: logout,
+    disconnect: handleDisconnect,
     walletClient,
     publicClient,
     isConnecting: !ready,

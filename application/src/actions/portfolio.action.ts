@@ -132,15 +132,21 @@ export async function fetchUserPortfolio(account: string): Promise<UserPortfolio
   const normalizedAccount = account.toLowerCase();
 
   try {
-    const res = await fetch(DREAMDEX_GRAPHQL_INDEXER, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: USER_PORTFOLIO_QUERY,
-        variables: { acct: normalizedAccount },
+    const [res, explorerRes] = await Promise.all([
+      fetch(DREAMDEX_GRAPHQL_INDEXER, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: USER_PORTFOLIO_QUERY,
+          variables: { acct: normalizedAccount },
+        }),
+        cache: "no-store",
       }),
-      cache: "no-store",
-    });
+      fetch(
+        `https://shannon-explorer.somnia.network/api?module=account&action=txlist&address=${normalizedAccount}&page=1&offset=50&sort=desc`,
+        { cache: "no-store" }
+      ).catch(() => null),
+    ]);
 
     if (!res.ok) {
       return { positions: [], openOrders: [], settledPositions: [], tradeHistory: [] };
@@ -150,6 +156,16 @@ export async function fetchUserPortfolio(account: string): Promise<UserPortfolio
     const data = json?.data;
     if (!data) {
       return { positions: [], openOrders: [], settledPositions: [], tradeHistory: [] };
+    }
+
+    let explorerTxs: any[] = [];
+    if (explorerRes && explorerRes.ok) {
+      try {
+        const expJson = await explorerRes.json();
+        if (Array.isArray(expJson.result)) {
+          explorerTxs = expJson.result;
+        }
+      } catch {}
     }
 
     const nowSec = Math.floor(Date.now() / 1000);
@@ -172,11 +188,26 @@ export async function fetchUserPortfolio(account: string): Promise<UserPortfolio
       const isExpired = (expirySec > 0 && expirySec <= nowSec) || isFinalized;
 
       // Find any recent txHash associated with this market
+      // 1. From orderbook fill
       const matchFill = fills.find((f) => f.market?.id?.toLowerCase() === m?.id?.toLowerCase());
+      // 2. From router action
       const matchRouter = routerActions.find(
         (r) => r.market_id?.toLowerCase() === m?.id?.toLowerCase()
       );
-      const txHash: string | undefined = matchFill?.txHash || matchRouter?.txHash;
+      // 3. Direct on-chain pool call from Somnia Explorer (mintSet, burnSet)
+      const matchExplorerTx = explorerTxs.find(
+        (t) =>
+          m?.poolAddress &&
+          t.to &&
+          t.to.toLowerCase() === m.poolAddress.toLowerCase()
+      );
+
+      const txHash: string | undefined = matchFill?.txHash || matchRouter?.txHash || matchExplorerTx?.hash;
+      const openedAtTime: string = matchFill?.timestamp
+        ? formatTime(Number(matchFill.timestamp))
+        : matchExplorerTx?.timeStamp
+        ? formatTime(Number(matchExplorerTx.timeStamp))
+        : "Active";
 
       const outcome = b.outcomeIndex === 0 ? "YES" : "NO";
 
@@ -211,7 +242,7 @@ export async function fetchUserPortfolio(account: string): Promise<UserPortfolio
           investedAmount: val,
           currentValue: val,
           roiPercent: 0.0,
-          openedAt: matchFill?.timestamp ? formatTime(Number(matchFill.timestamp)) : "Active",
+          openedAt: openedAtTime,
           expiryTimestamp: expirySec > 0 ? expirySec : undefined,
           txHash: txHash as `0x${string}` | undefined,
         });
@@ -234,6 +265,7 @@ export async function fetchUserPortfolio(account: string): Promise<UserPortfolio
         contractOrderId: o.orderId || o.id,
         marketId: o.market?.id || o.market?.poolAddress || "",
         symbol: o.market?.asset ? `${o.market.asset}/USDC` : "Market",
+        question: o.market?.question || (o.market?.asset ? `${o.market.asset}/USDC` : "Market"),
         side: o.side ? (o.side.includes("YES") ? "BUY_YES" : "BUY_NO") : "BUY_YES",
         orderType: "LIMIT",
         price,
@@ -295,6 +327,41 @@ export async function fetchUserPortfolio(account: string): Promise<UserPortfolio
         timestamp: r.timestamp ? formatTime(Number(r.timestamp)) : "Executed",
         txHash: r.txHash,
       });
+    }
+
+    // Also include on-chain direct Pool mint/burn transactions from Somnia Explorer
+    const seenTxHashes = new Set<string>(
+      history.map((h) => h.txHash?.toLowerCase()).filter(Boolean) as string[]
+    );
+    for (const expTx of explorerTxs) {
+      if (!expTx.hash || seenTxHashes.has(expTx.hash.toLowerCase())) continue;
+      const input = (expTx.input || "").toLowerCase();
+      // Method IDs: 0x54657dd2 is mintSet, 0x55664dbd is burnSet
+      const isPoolMint = input.startsWith("0x54657dd2") || expTx.functionName?.includes("mintSet");
+      const isPoolBurn = input.startsWith("0x55664dbd") || expTx.functionName?.includes("burnSet");
+
+      if (isPoolMint || isPoolBurn) {
+        seenTxHashes.add(expTx.hash.toLowerCase());
+        const matchMarket = outcomeBalances.find(
+          (b) => b.market?.poolAddress?.toLowerCase() === expTx.to?.toLowerCase()
+        )?.market;
+
+        history.push({
+          id: `onchain-${expTx.hash}`,
+          marketId: matchMarket?.id || expTx.to,
+          symbol: matchMarket?.asset ? `${matchMarket.asset}/USDC` : "Complete Sets",
+          question: isPoolMint
+            ? `Mint Complete Sets (${matchMarket?.question || "YES + NO"})`
+            : `Burn Complete Sets (${matchMarket?.question || "tUSDC"})`,
+          side: isPoolMint ? "MINT" : "BURN",
+          price: 1.0,
+          amount: 0,
+          shares: 0,
+          status: "Executed",
+          timestamp: expTx.timeStamp ? formatTime(Number(expTx.timeStamp)) : "Executed",
+          txHash: expTx.hash,
+        });
+      }
     }
 
     // Sort combined history newest first

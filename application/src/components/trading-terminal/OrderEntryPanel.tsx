@@ -5,7 +5,7 @@ import React, { useState } from "react";
 
 // 2. Third-Party Libraries
 import confetti from "canvas-confetti";
-import { Check, ExternalLink, Loader2, AlertCircle } from "lucide-react";
+import { Check, ExternalLink, Loader2, AlertCircle, Layers } from "lucide-react";
 import { toast } from "sonner";
 
 // 3. UI Components
@@ -28,6 +28,7 @@ interface OrderEntryPanelProps {
   initialPrice?: number;
   walletClient?: WalletClient | null;
   walletAddress?: string | null;
+  userShares?: { yes: number; no: number };
   onPlaceOrder?: (order: {
     side: MarketOutcome;
     price: number;
@@ -52,6 +53,7 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
   initialPrice,
   walletClient,
   walletAddress,
+  userShares = { yes: 0, no: 0 },
   onPlaceOrder,
   onMintSets,
   onBurnSets,
@@ -78,9 +80,18 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
     market.status === "Finalized"
   );
 
+  // User holdings & Set calculations
+  const safeUserShares = userShares || { yes: 0, no: 0 };
+  const maxMergeable = Math.max(0, Math.min(safeUserShares.yes, safeUserShares.no));
+
   // Mint / Burn Set State
   const [setAction, setSetAction] = useState<"mint" | "burn">("mint");
-  const [setAmount, setSetAmount] = useState<string>("20");
+  const [setAmount, setSetAmount] = useState<string>("10");
+
+  const numSetAmount = parseFloat(setAmount) || 0;
+  const isMintOverBalance = setAction === "mint" && numSetAmount > userBalanceUSDC;
+  const isBurnZeroAvailable = setAction === "burn" && maxMergeable <= 0;
+  const isBurnOverLimit = setAction === "burn" && numSetAmount > maxMergeable;
 
   const numPrice = parseFloat(price) || 0;
   const isPriceValid = numPrice >= 0.01 && numPrice <= 0.99;
@@ -201,7 +212,12 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
                   : "bg-secondary/40 text-muted-foreground hover:bg-secondary"
               }`}
             >
-              BUY YES (${clampProbabilityPrice(market.bestAsk > 0 ? market.bestAsk : 0.5).toFixed(2)})
+              <div>BUY YES (${clampProbabilityPrice(market.bestAsk > 0 ? market.bestAsk : 0.5).toFixed(2)})</div>
+              {safeUserShares.yes > 0 && (
+                <div className="text-[10px] font-mono opacity-90 font-normal mt-0.5">
+                  Hold: {safeUserShares.yes.toLocaleString()} shares
+                </div>
+              )}
             </button>
 
             <button
@@ -220,7 +236,12 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
                   : "bg-secondary/40 text-muted-foreground hover:bg-secondary"
               }`}
             >
-              BUY NO (${clampProbabilityPrice(1 - (market.bestBid > 0 ? market.bestBid : 0.5)).toFixed(2)})
+              <div>BUY NO (${clampProbabilityPrice(1 - (market.bestBid > 0 ? market.bestBid : 0.5)).toFixed(2)})</div>
+              {safeUserShares.no > 0 && (
+                <div className="text-[10px] font-mono opacity-90 font-normal mt-0.5">
+                  Hold: {safeUserShares.no.toLocaleString()} shares
+                </div>
+              )}
             </button>
           </div>
 
@@ -401,7 +422,7 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
         </TabsContent>
 
         {/* --- TAB 2: COMPLETE SETS (MINT / BURN) --- */}
-        <TabsContent value="sets" className="space-y-2.5 m-0">
+        <TabsContent value="sets" className="space-y-3 m-0">
           {/* Market Expired Warning Banner */}
           {isMarketExpired && (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-2">
@@ -410,13 +431,88 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
             </div>
           )}
 
-          <div className="rounded-xl border border-border/60 bg-secondary/20 p-2.5 text-xs text-muted-foreground leading-relaxed">
-            <span className="font-semibold text-foreground block mb-1">
-              Complete Set Inventory:
-            </span>
-            1 tUSDC Collateral ⇄ 1 YES + 1 NO outcome shares. Mint sets to hold outcome shares, or burn pairs back to collateral.
+          {/* Current Market Shares Balance / Inventory Card */}
+          <div className="rounded-xl border border-border/60 bg-secondary/20 p-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Layers className="size-3.5 text-primary" />
+                Your Market Holdings
+              </span>
+              <span className="text-[10px] text-muted-foreground font-mono bg-background/80 px-2 py-0.5 rounded-md border border-border/40">
+                {market.symbol}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {/* YES Outcome Shares */}
+              <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/25 p-2 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">
+                  <span>YES Shares</span>
+                  <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                    {(market.yesProbability * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <div className="mt-1">
+                  <div className="text-base font-bold font-mono text-emerald-600 dark:text-emerald-400 leading-none">
+                    {safeUserShares.yes.toLocaleString(undefined, {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 4,
+                    })}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">
+                    ≈ ${(safeUserShares.yes * market.yesProbability).toFixed(2)} USD
+                  </div>
+                </div>
+              </div>
+
+              {/* NO Outcome Shares */}
+              <div className="rounded-lg bg-rose-500/10 border border-rose-500/25 p-2 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[10px] uppercase font-bold text-rose-600 dark:text-rose-400 tracking-wider">
+                  <span>NO Shares</span>
+                  <span className="text-[9px] px-1 py-0.2 rounded bg-rose-500/20 text-rose-700 dark:text-rose-300">
+                    {(market.noProbability * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <div className="mt-1">
+                  <div className="text-base font-bold font-mono text-rose-600 dark:text-rose-400 leading-none">
+                    {safeUserShares.no.toLocaleString(undefined, {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 4,
+                    })}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">
+                    ≈ ${(safeUserShares.no * market.noProbability).toFixed(2)} USD
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Mergeable Sets Summary Pill */}
+            <div className="rounded-lg bg-background/80 border border-border/50 px-2.5 py-1.5 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground text-[11px]">
+                Mergeable Sets (1 YES + 1 NO):
+              </span>
+              <span className="font-mono font-semibold text-foreground flex items-center gap-1 text-[11px]">
+                {maxMergeable.toLocaleString(undefined, {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 4,
+                })}
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-normal">
+                  (= ${(maxMergeable * 1.0).toFixed(2)} tUSDC)
+                </span>
+              </span>
+            </div>
           </div>
 
+          {/* Educational hint */}
+          <div className="rounded-xl border border-border/40 bg-secondary/10 p-2.5 text-[11px] text-muted-foreground leading-relaxed">
+            <span className="font-semibold text-foreground block mb-0.5">
+              1 tUSDC Collateral ⇄ 1 YES + 1 NO Outcome Set
+            </span>
+            Mint sets to receive both outcome tokens, or burn matching pairs back to 100% tUSDC collateral at zero protocol fee.
+          </div>
+
+          {/* Mint vs Burn Action Switcher */}
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -435,7 +531,12 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
             <button
               type="button"
               disabled={isMarketExpired}
-              onClick={() => setSetAction("burn")}
+              onClick={() => {
+                setSetAction("burn");
+                if (maxMergeable > 0 && parseFloat(setAmount) > maxMergeable) {
+                  setSetAmount(maxMergeable.toString());
+                }
+              }}
               className={`rounded-xl py-2 px-3 text-center text-xs font-semibold transition-all ${
                 isMarketExpired ? "opacity-50 cursor-not-allowed " : "cursor-pointer "
               }${
@@ -448,39 +549,128 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
             </button>
           </div>
 
+          {/* Amount Input with Dynamic Label & Balance */}
           <div>
-            <span className="text-xs text-muted-foreground mb-1 block">
-              {setAction === "mint" ? "Collateral to Mint (tUSDC)" : "Sets to Merge (YES+NO)"}
-            </span>
-            <Input
-              type="number"
-              value={setAmount}
-              onChange={(e) => setSetAmount(e.target.value)}
-              disabled={isMarketExpired}
-              className="font-mono text-sm h-9"
-            />
+            <div className="flex justify-between items-center text-xs mb-1.5">
+              <span className="text-muted-foreground font-medium">
+                {setAction === "mint" ? "Collateral to Mint (tUSDC)" : "Sets to Merge (YES + NO)"}
+              </span>
+              <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-mono">
+                {setAction === "mint" ? (
+                  <>
+                    Bal: ${userBalanceUSDC.toFixed(2)} tUSDC
+                    <button
+                      type="button"
+                      disabled={isMarketExpired || userBalanceUSDC <= 0}
+                      onClick={() =>
+                        setSetAmount(Math.max(0, Math.floor(userBalanceUSDC)).toString())
+                      }
+                      className="text-primary hover:underline font-bold text-[10px] ml-0.5 disabled:opacity-40 disabled:hover:no-underline cursor-pointer"
+                    >
+                      MAX
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    Max: {maxMergeable} sets
+                    <button
+                      type="button"
+                      disabled={isMarketExpired || maxMergeable <= 0}
+                      onClick={() => setSetAmount(maxMergeable.toString())}
+                      className="text-primary hover:underline font-bold text-[10px] ml-0.5 disabled:opacity-40 disabled:hover:no-underline cursor-pointer"
+                    >
+                      MAX
+                    </button>
+                  </>
+                )}
+              </span>
+            </div>
+
+            <div className="relative">
+              <Input
+                type="number"
+                min="0.1"
+                step="1"
+                value={setAmount}
+                onChange={(e) => setSetAmount(e.target.value)}
+                disabled={isMarketExpired}
+                className="font-mono text-sm h-9 pr-14"
+                placeholder={setAction === "mint" ? "10" : "1"}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-muted-foreground font-semibold">
+                {setAction === "mint" ? "tUSDC" : "SETS"}
+              </span>
+            </div>
+
+            {/* Quick Sizing Buttons */}
+            <div className="grid grid-cols-4 gap-1.5 mt-1.5">
+              {setAction === "mint"
+                ? [5, 10, 25, 50].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      disabled={isMarketExpired}
+                      onClick={() => setSetAmount(val.toString())}
+                      className="py-1 px-1.5 text-[10px] font-mono font-medium rounded-lg bg-secondary/50 hover:bg-secondary text-muted-foreground hover:text-foreground transition-all border border-border/40 disabled:opacity-40 cursor-pointer"
+                    >
+                      ${val}
+                    </button>
+                  ))
+                : [0.25, 0.5, 0.75, 1.0].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      disabled={isMarketExpired || maxMergeable <= 0}
+                      onClick={() => {
+                        const calculated = Math.floor(maxMergeable * pct);
+                        setSetAmount(calculated.toString());
+                      }}
+                      className="py-1 px-1.5 text-[10px] font-mono font-medium rounded-lg bg-secondary/50 hover:bg-secondary text-muted-foreground hover:text-foreground transition-all border border-border/40 disabled:opacity-40 cursor-pointer"
+                    >
+                      {pct === 1.0 ? "MAX" : `${pct * 100}%`}
+                    </button>
+                  ))}
+            </div>
           </div>
 
-          <div className="rounded-xl border border-border/60 bg-secondary/20 p-3 text-xs space-y-1 font-mono">
+          {/* Output & Fee Summary */}
+          <div className="rounded-xl border border-border/60 bg-secondary/20 p-2.5 text-xs space-y-1.5 font-mono">
             <div className="flex justify-between text-muted-foreground text-[11px]">
-              <span>Output:</span>
+              <span>{setAction === "mint" ? "Receive (Shares):" : "Receive (Collateral):"}</span>
               <span className="font-bold text-foreground">
                 {setAction === "mint"
-                  ? `${setAmount} YES + ${setAmount} NO`
-                  : `${setAmount} tUSDC Collateral`}
+                  ? `${setAmount || "0"} YES + ${setAmount || "0"} NO`
+                  : `$${(parseFloat(setAmount) || 0).toFixed(2)} tUSDC`}
               </span>
             </div>
             <div className="flex justify-between text-muted-foreground text-[11px]">
-              <span>Protocol Fee:</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">0.00%</span>
+              <span>{setAction === "mint" ? "Collateral Cost:" : "Shares Burned:"}</span>
+              <span className="font-semibold text-foreground">
+                {setAction === "mint"
+                  ? `$${(parseFloat(setAmount) || 0).toFixed(2)} tUSDC`
+                  : `${setAmount || "0"} YES + ${setAmount || "0"} NO`}
+              </span>
+            </div>
+            <div className="flex justify-between text-muted-foreground text-[11px] pt-1 border-t border-border/30">
+              <span>Protocol Mint/Burn Fee:</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">0.00% (Free)</span>
             </div>
           </div>
 
+          {/* Mint / Burn Action Button with Comprehensive Validation */}
           <Button
             onClick={handleSetOperation}
-            disabled={isMarketExpired || isSubmitting || parseFloat(setAmount) <= 0}
-            className={`w-full rounded-xl text-xs font-semibold h-10 ${
-              isMarketExpired ? "bg-secondary text-muted-foreground cursor-not-allowed hover:bg-secondary" : ""
+            disabled={
+              isMarketExpired ||
+              isSubmitting ||
+              numSetAmount <= 0 ||
+              (setAction === "mint" && isMintOverBalance) ||
+              (setAction === "burn" && (isBurnZeroAvailable || isBurnOverLimit))
+            }
+            className={`w-full rounded-xl text-xs font-semibold h-10 transition-all ${
+              isMarketExpired
+                ? "bg-secondary text-muted-foreground cursor-not-allowed hover:bg-secondary"
+                : ""
             }`}
           >
             {isMarketExpired ? (
@@ -490,10 +680,20 @@ export const OrderEntryPanel: React.FC<OrderEntryPanelProps> = ({
                 <Loader2 className="size-3.5 animate-spin mr-1.5" />
                 Processing on Somnia...
               </>
+            ) : numSetAmount <= 0 ? (
+              setAction === "mint" ? "Enter Collateral Amount" : "Enter Sets to Merge"
             ) : setAction === "mint" ? (
-              `Mint ${setAmount} YES & ${setAmount} NO`
+              isMintOverBalance ? (
+                `Insufficient tUSDC ($${userBalanceUSDC.toFixed(2)})`
+              ) : (
+                `Mint ${numSetAmount} YES & ${numSetAmount} NO`
+              )
+            ) : isBurnZeroAvailable ? (
+              "No Complete Sets to Merge"
+            ) : isBurnOverLimit ? (
+              `Exceeds Max Sets (Max ${maxMergeable})`
             ) : (
-              `Burn ${setAmount} Sets for tUSDC`
+              `Burn ${numSetAmount} Sets for $${numSetAmount.toFixed(2)} tUSDC`
             )}
           </Button>
         </TabsContent>

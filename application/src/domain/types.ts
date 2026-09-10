@@ -40,6 +40,7 @@ export interface OpenOrder {
   id: string;
   marketId: string;
   symbol: string;
+  question?: string;
   side: "BUY_YES" | "BUY_NO" | "SELL_YES" | "SELL_NO";
   orderType: "LIMIT" | "MARKET" | "POST_ONLY";
   price: number;

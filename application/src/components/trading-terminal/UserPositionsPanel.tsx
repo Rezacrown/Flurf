@@ -83,6 +83,7 @@ const ExplorerTxLink: React.FC<{ txHash?: string }> = ({ txHash }) => {
       href={`https://shannon-explorer.somnia.network/tx/${txHash}`}
       target="_blank"
       rel="noreferrer"
+      onClick={(e) => e.stopPropagation()}
       className="inline-flex items-center gap-1 font-mono text-[10px] text-muted-foreground hover:text-foreground transition-colors group cursor-pointer"
       title={`View on Somnia Explorer: ${txHash}`}
     >
@@ -103,6 +104,7 @@ interface UserPositionsPanelProps {
   onShareCopy: (position: UserPosition) => void;
   onCancelOrder: (orderId: string) => Promise<boolean | void> | void;
   onRedeemWinnings: (position: SettledPosition) => Promise<boolean | void> | void;
+  onSelectMarket?: (marketId: string) => void;
 }
 
 export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
@@ -116,6 +118,7 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
   onShareCopy,
   onCancelOrder,
   onRedeemWinnings,
+  onSelectMarket,
 }) => {
   const [activeTab, setActiveTab] = useState("positions");
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
@@ -265,7 +268,11 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                   return (
                     <div
                       key={pos.id}
-                      className="rounded-xl border border-border/60 bg-secondary/15 p-3 space-y-2.5 shadow-2xs"
+                      onClick={() => onSelectMarket?.(pos.marketId)}
+                      className={`rounded-xl border border-border/60 bg-secondary/15 p-3 space-y-2.5 shadow-2xs transition-all ${
+                        onSelectMarket ? "cursor-pointer hover:border-primary/40 hover:bg-secondary/25" : ""
+                      }`}
+                      title="Click to view and trade this market"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <span className="font-serif text-xs font-medium text-foreground leading-snug line-clamp-2">
@@ -332,7 +339,10 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => onSharePnl(pos)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSharePnl(pos);
+                            }}
                             className="rounded-lg text-[10px] h-7 px-2.5 bg-slate-900 text-white hover:bg-slate-800 hover:text-white border-slate-800 cursor-pointer"
                           >
                             <TrendingUp className="size-3 mr-1 text-emerald-400" />
@@ -341,7 +351,10 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleCopyTradeLink(pos)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyTradeLink(pos);
+                            }}
                             className="rounded-lg text-[10px] h-7 px-2.5 border-violet-500/30 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 font-medium transition-all cursor-pointer"
                           >
                             {copiedPosId === pos.id ? (
@@ -384,9 +397,18 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                     {positions.map((pos) => {
                       const isProfit = pos.roiPercent >= 0;
                       return (
-                        <tr key={pos.id} className="hover:bg-secondary/20 transition-colors">
-                          <td className="py-3 font-medium text-foreground max-w-[200px] truncate">
-                            {pos.question}
+                        <tr
+                          key={pos.id}
+                          onClick={() => onSelectMarket?.(pos.marketId)}
+                          className={`hover:bg-secondary/30 transition-colors ${
+                            onSelectMarket ? "cursor-pointer" : ""
+                          }`}
+                          title="Click to view and trade this market in terminal"
+                        >
+                          <td className="py-3 font-medium text-foreground max-w-[200px] truncate group">
+                            <span className="group-hover:text-primary group-hover:underline transition-colors">
+                              {pos.question}
+                            </span>
                           </td>
                           <td className="py-3">
                             <Badge
@@ -430,7 +452,10 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => onSharePnl(pos)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onSharePnl(pos);
+                                }}
                                 className="rounded-lg text-[10px] h-7 px-2.5 bg-slate-900 text-white hover:bg-slate-800 hover:text-white border-slate-800 cursor-pointer"
                               >
                                 <TrendingUp className="size-3 mr-1 text-emerald-400" />
@@ -439,7 +464,10 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleCopyTradeLink(pos)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCopyTradeLink(pos);
+                                }}
                                 className="rounded-lg text-[10px] h-7 px-2.5 border-violet-500/30 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 font-medium transition-all cursor-pointer"
                               >
                                 {copiedPosId === pos.id ? (
@@ -482,15 +510,17 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                 {openOrders.map((ord) => (
                   <div
                     key={ord.id}
-                    className="rounded-xl border border-border/60 bg-secondary/15 p-3 space-y-2.5 shadow-2xs"
+                    onClick={() => ord.marketId && onSelectMarket?.(ord.marketId)}
+                    className={`rounded-xl border border-border/60 bg-secondary/15 p-3 space-y-2.5 shadow-2xs transition-all ${
+                      onSelectMarket && ord.marketId ? "cursor-pointer hover:border-primary/40 hover:bg-secondary/25" : ""
+                    }`}
+                    title={ord.marketId ? "Click to view and trade this market" : undefined}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        {ord.symbol && (
-                          <span className="font-semibold text-xs text-foreground bg-secondary/80 px-2 py-0.5 rounded">
-                            {ord.symbol}
-                          </span>
-                        )}
+                        <span className="font-semibold text-xs text-foreground bg-secondary/80 px-2 py-0.5 rounded max-w-[150px] truncate">
+                          {ord.question || ord.symbol || "Market"}
+                        </span>
                         <Badge
                           className={`text-[10px] px-2 py-0.5 border-0 font-bold ${
                             ord.side.includes("YES")
@@ -504,7 +534,7 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                           {ord.orderType}
                         </span>
                       </div>
-                      <span className="font-mono text-[10px] text-muted-foreground">{ord.id}</span>
+                      <span className="font-mono text-[10px] text-muted-foreground">#{ord.id}</span>
                     </div>
 
                     <div className="grid grid-cols-3 gap-1.5 bg-card/60 p-2 rounded-lg border border-border/40 text-center">
@@ -539,7 +569,10 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleCopyOrderLink(ord)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyOrderLink(ord);
+                        }}
                         className="flex-1 rounded-lg text-xs h-8 border-violet-500/30 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 font-medium cursor-pointer"
                       >
                         <Sparkles className="size-3.5 mr-1 text-violet-500" />
@@ -548,7 +581,10 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => onCancelOrder(ord.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCancelOrder(ord.id);
+                        }}
                         className="flex-1 rounded-lg text-xs h-8 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 border border-rose-500/20 cursor-pointer"
                       >
                         <X className="size-3.5 mr-1" />
@@ -577,9 +613,18 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                   </thead>
                   <tbody className="divide-y divide-border/30">
                     {openOrders.map((ord) => (
-                      <tr key={ord.id} className="hover:bg-secondary/20 transition-colors">
-                        <td className="py-3 font-semibold text-foreground">
-                          {ord.symbol || "Market"}
+                      <tr
+                        key={ord.id}
+                        onClick={() => ord.marketId && onSelectMarket?.(ord.marketId)}
+                        className={`hover:bg-secondary/30 transition-colors ${
+                          onSelectMarket && ord.marketId ? "cursor-pointer" : ""
+                        }`}
+                        title={ord.marketId ? "Click to view and trade this market in terminal" : undefined}
+                      >
+                        <td className="py-3 font-medium text-foreground max-w-[200px] truncate group">
+                          <span className="group-hover:text-primary group-hover:underline transition-colors">
+                            {ord.question || ord.symbol || "Market"}
+                          </span>
                         </td>
                         <td className="py-3 font-mono text-[11px] text-muted-foreground">
                           #{ord.id}
@@ -609,7 +654,10 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleCopyOrderLink(ord)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyOrderLink(ord);
+                              }}
                               className="rounded-lg text-[10px] h-7 px-2 border-violet-500/30 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 font-medium transition-all cursor-pointer"
                               title="Share this order as a copy trade link"
                             >
@@ -619,7 +667,10 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => onCancelOrder(ord.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onCancelOrder(ord.id);
+                              }}
                               className="rounded-lg text-[10px] h-7 px-2 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 cursor-pointer"
                             >
                               <X className="size-3 mr-1" />
@@ -664,7 +715,11 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                     {settledPositions.map((sp) => (
                       <div
                         key={sp.marketId}
-                        className="rounded-xl border border-border/60 bg-secondary/15 p-3 space-y-2.5 shadow-2xs"
+                        onClick={() => onSelectMarket?.(sp.marketId)}
+                        className={`rounded-xl border border-border/60 bg-secondary/15 p-3 space-y-2.5 shadow-2xs transition-all ${
+                          onSelectMarket ? "cursor-pointer hover:border-primary/40 hover:bg-secondary/25" : ""
+                        }`}
+                        title="Click to view this market"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <span className="font-serif text-xs font-medium text-foreground leading-snug line-clamp-2">
@@ -701,7 +756,10 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleShareSettledPnl(sp)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleShareSettledPnl(sp);
+                            }}
                             className="w-full rounded-xl text-xs h-8 bg-slate-900 text-white hover:bg-slate-800 border-slate-800 cursor-pointer flex items-center justify-center gap-1.5"
                           >
                             <TrendingUp className="size-3 text-emerald-400" />
@@ -715,7 +773,10 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                           ) : (
                             <Button
                               size="sm"
-                              onClick={() => handleRedeem(sp)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRedeem(sp);
+                              }}
                               disabled={redeemingId === sp.marketId}
                               className="w-full rounded-xl text-xs h-9 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold cursor-pointer shadow-xs"
                             >
@@ -750,9 +811,18 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                       </thead>
                       <tbody className="divide-y divide-border/30">
                         {settledPositions.map((sp) => (
-                          <tr key={sp.marketId} className="hover:bg-secondary/20 transition-colors">
-                            <td className="py-3 font-medium text-foreground max-w-[220px] truncate">
-                              {sp.question}
+                          <tr
+                            key={sp.marketId}
+                            onClick={() => onSelectMarket?.(sp.marketId)}
+                            className={`hover:bg-secondary/30 transition-colors ${
+                              onSelectMarket ? "cursor-pointer" : ""
+                            }`}
+                            title="Click to view this market"
+                          >
+                            <td className="py-3 font-medium text-foreground max-w-[220px] truncate group">
+                              <span className="group-hover:text-primary group-hover:underline transition-colors">
+                                {sp.question}
+                              </span>
                             </td>
                             <td className="py-3 font-bold text-emerald-600 dark:text-emerald-400">
                               {sp.winningOutcome} (Resolved)
@@ -774,7 +844,10 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => handleShareSettledPnl(sp)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleShareSettledPnl(sp);
+                                  }}
                                   className="rounded-xl text-[10px] h-7 px-2.5 bg-slate-900 text-white hover:bg-slate-800 border-slate-800 cursor-pointer"
                                   title="Generate PnL / Win Badge"
                                 >
@@ -789,7 +862,10 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                                 ) : (
                                   <Button
                                     size="sm"
-                                    onClick={() => handleRedeem(sp)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRedeem(sp);
+                                    }}
                                     disabled={redeemingId === sp.marketId}
                                     className="rounded-xl text-[10px] h-7 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold cursor-pointer"
                                   >
@@ -830,7 +906,11 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                     {tradeHistory.map((th) => (
                       <div
                         key={th.id}
-                        className="rounded-xl border border-border/50 bg-secondary/15 p-2.5 space-y-1.5 text-xs"
+                        onClick={() => th.marketId && onSelectMarket?.(th.marketId)}
+                        className={`rounded-xl border border-border/50 bg-secondary/15 p-2.5 space-y-1.5 text-xs transition-all ${
+                          th.marketId && onSelectMarket ? "cursor-pointer hover:border-primary/40 hover:bg-secondary/25" : ""
+                        }`}
+                        title="Click to view this market"
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-semibold text-foreground truncate max-w-[200px]">
@@ -864,7 +944,10 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleShareHistoryPnl(th)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleShareHistoryPnl(th);
+                              }}
                               className="rounded-md text-[9px] h-5 px-1.5 border-violet-500/30 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 cursor-pointer"
                               title="Share trade badge"
                             >
@@ -899,7 +982,14 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                       </thead>
                       <tbody className="divide-y divide-border/30">
                         {tradeHistory.map((th) => (
-                          <tr key={th.id} className="hover:bg-secondary/20 transition-colors">
+                          <tr
+                            key={th.id}
+                            onClick={() => th.marketId && onSelectMarket?.(th.marketId)}
+                            className={`hover:bg-secondary/30 transition-colors ${
+                              th.marketId && onSelectMarket ? "cursor-pointer" : ""
+                            }`}
+                            title="Click to view this market"
+                          >
                             <td className="py-2.5">
                               <Badge
                                 className={`text-[10px] px-2 py-0.5 border-0 font-bold ${
@@ -939,6 +1029,7 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                                   href={`https://shannon-explorer.somnia.network/tx/${th.txHash}`}
                                   target="_blank"
                                   rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
                                   className="text-muted-foreground hover:text-foreground font-mono text-[10px] inline-flex items-center gap-0.5 hover:underline"
                                 >
                                   {th.txHash.slice(0, 6)}...
@@ -952,7 +1043,10 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleShareHistoryPnl(th)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleShareHistoryPnl(th);
+                                }}
                                 className="rounded-lg text-[10px] h-6 px-2 border-violet-500/30 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 cursor-pointer"
                                 title="Share trade badge"
                               >

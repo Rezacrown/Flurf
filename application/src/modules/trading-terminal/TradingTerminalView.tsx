@@ -1,7 +1,7 @@
 "use client";
 
 // 1. Core Framework
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 
 // 2. Third-Party Libraries
 import { useQuery } from "@tanstack/react-query";
@@ -52,7 +52,7 @@ export function TradingTerminalView() {
   const {
     markets,
     selectedMarket,
-    setSelectedMarketId,
+    selectMarket,
     isMarketsLoading,
   } = useTerminalMarkets({ isCopyParam, copyMarketIdParam });
 
@@ -74,10 +74,12 @@ export function TradingTerminalView() {
     openOrders,
     settledPositions,
     tradeHistory,
+    onchainBalances,
     handleOrderPlaced,
     handleCopyExecuted,
     handleCancelOrder,
     handleRedeemWinnings,
+    refetchPositions,
   } = usePositionsManager({
     markets,
     selectedMarket,
@@ -85,6 +87,41 @@ export function TradingTerminalView() {
     walletClient,
     onBalanceRefresh: refetchBalance,
   });
+
+  // 5.1 Real-time YES & NO outcome shares calculation for selected market
+  const userShares = useMemo(() => {
+    if (!selectedMarket) return { yes: 0, no: 0 };
+    let yes = 0;
+    let no = 0;
+
+    // A. Direct on-chain ERC-6909 balances (source of truth)
+    const onchain = onchainBalances[selectedMarket.id];
+    if (onchain) {
+      yes = Number(onchain.yesBalance) / 1_000_000;
+      no = Number(onchain.noBalance) / 1_000_000;
+    }
+
+    // B. Fallback to active positions & settled positions
+    if (yes === 0 && no === 0) {
+      for (const p of positions) {
+        if (p.marketId === selectedMarket.id || p.symbol === selectedMarket.symbol) {
+          if (p.outcome === "YES") yes += p.shares;
+          if (p.outcome === "NO") no += p.shares;
+        }
+      }
+      for (const sp of settledPositions) {
+        if (sp.marketId === selectedMarket.id || sp.symbol === selectedMarket.symbol) {
+          if (sp.userOutcome === "YES") yes += sp.shares;
+          if (sp.userOutcome === "NO") no += sp.shares;
+        }
+      }
+    }
+
+    return {
+      yes: Number(yes.toFixed(4)),
+      no: Number(no.toFixed(4)),
+    };
+  }, [selectedMarket, onchainBalances, positions, settledPositions]);
 
   // 6. Action Execution Hook (Transport Layer)
   const tradingActions = useTradingActions({
@@ -94,6 +131,7 @@ export function TradingTerminalView() {
     walletClient,
     onBalanceRefresh: () => {
       refetchBalance();
+      refetchPositions();
     },
     onOrderPlacedSuccess: handleOrderPlaced,
     onCopyTradeSuccess: handleCopyExecuted,
@@ -158,7 +196,7 @@ export function TradingTerminalView() {
                     markets={markets}
                     activeMarketId={selectedMarket.id}
                     onSelectMarket={(m) => {
-                      setSelectedMarketId(m.id);
+                      selectMarket(m.id);
                       setMobileTab("trade");
                     }}
                     onOpenMarketModal={() => modals.setIsMarketSelectModalOpen(true)}
@@ -189,6 +227,7 @@ export function TradingTerminalView() {
                   <OrderEntryPanel
                     market={selectedMarket}
                     userBalanceUSDC={balanceUSDC}
+                    userShares={userShares}
                     initialPrice={selectedPrice}
                     walletAddress={walletAddress}
                     onPlaceOrder={tradingActions.executePlaceOrder}
@@ -222,6 +261,10 @@ export function TradingTerminalView() {
                 onShareCopy={modals.openCopyModal}
                 onCancelOrder={handleCancelOrder}
                 onRedeemWinnings={handleRedeemWinnings}
+                onSelectMarket={(marketId) => {
+                  selectMarket(marketId);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
               />
             </div>
           </>
@@ -242,7 +285,7 @@ export function TradingTerminalView() {
         isMarketSelectOpen={modals.isMarketSelectModalOpen}
         onCloseMarketSelect={() => modals.setIsMarketSelectModalOpen(false)}
         onSelectMarket={(m) => {
-          setSelectedMarketId(m.id);
+          selectMarket(m.id);
           setMobileTab("trade");
         }}
         isPnlOpen={modals.isPnlOpen}

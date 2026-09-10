@@ -25,7 +25,7 @@ const LIVE_MARKETS_QUERY = `
     Market(
       where: { marketType: { _eq: "BINARY" } }
       order_by: { id: desc }
-      limit: 30
+      limit: 100
     ) {
       id
       marketType
@@ -147,11 +147,67 @@ export async function getMarketByIdAction(marketId: string): Promise<{
   success: boolean;
   data: BinaryMarket | null;
 }> {
+  if (!marketId) return { success: false, data: null };
+
   const result = await getLiveMarketsAction();
-  const found = result.data.find((m) => m.id.toLowerCase() === marketId.toLowerCase()) || null;
+  const found = result.data.find(
+    (m) =>
+      m.id.toLowerCase() === marketId.toLowerCase() ||
+      m.symbol.toLowerCase() === marketId.toLowerCase() ||
+      m.poolAddress.toLowerCase() === marketId.toLowerCase()
+  );
+
+  if (found) {
+    return { success: true, data: found };
+  }
+
+  // Direct indexer query fallback if older market not in live list
+  try {
+    const SINGLE_MARKET_QUERY = `
+      query GetSingleBinaryMarket($id: String!) {
+        Market(where: { id: { _eq: $id } }, limit: 1) {
+          id
+          marketType
+          poolAddress
+          asset
+          question
+          clobStatus
+          expiry
+          yesTokenId
+          noTokenId
+          lastPrice
+          markPrice
+          cumulativeQuoteVolume
+          tradeCount
+          winningOutcome
+        }
+      }
+    `;
+
+    const res = await fetch(DREAMDEX_GRAPHQL_INDEXER, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: SINGLE_MARKET_QUERY,
+        variables: { id: marketId },
+      }),
+      cache: "no-store",
+    });
+
+    if (res.ok) {
+      const json = await res.json();
+      const rec = json?.data?.Market?.[0];
+      if (rec) {
+        return {
+          success: true,
+          data: mapIndexerRecordToBinaryMarket(rec, 0),
+        };
+      }
+    }
+  } catch {}
 
   return {
-    success: found !== null,
-    data: found,
+    success: false,
+    data: null,
   };
 }

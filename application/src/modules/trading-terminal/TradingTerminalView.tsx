@@ -276,30 +276,41 @@ export function TradingTerminalView() {
       </div>
 
       {/* Unified Modals Container */}
-      <TerminalModals
-        markets={markets}
-        selectedMarket={selectedMarket}
-        balanceUSDC={balanceUSDC}
-        walletAddress={walletAddress}
-        walletClient={walletClient}
-        isMarketSelectOpen={modals.isMarketSelectModalOpen}
-        onCloseMarketSelect={() => modals.setIsMarketSelectModalOpen(false)}
-        onSelectMarket={(m) => {
-          selectMarket(m.id);
-          setMobileTab("trade");
-        }}
-        isPnlOpen={modals.isPnlOpen}
-        onClosePnl={() => modals.setIsPnlOpen(false)}
-        pnlData={modals.pnlData}
-        isCopyOpen={modals.isCopyOpen}
-        onCloseCopy={modals.closeCopyModal}
-        copyIntentData={copyIntentData}
-        onExecuteCopy={tradingActions.executeCopyTrade}
-        onCopyExecuted={handleCopyExecuted}
-        isFaucetOpen={modals.isFaucetOpen}
-        onCloseFaucet={() => modals.setIsFaucetOpen(false)}
-        onClaimSuccess={() => refetchBalance()}
-      />
+      {(() => {
+        const currentMarketPosition = positions.find(
+          (p) => p.marketId === selectedMarket?.id || p.symbol === selectedMarket?.symbol
+        );
+        const defaultTxHash = currentMarketPosition?.txHash;
+        const effectiveCopyIntent = modals.activeCopyIntent || copyIntentData;
+
+        return (
+          <TerminalModals
+            markets={markets}
+            selectedMarket={selectedMarket}
+            balanceUSDC={balanceUSDC}
+            walletAddress={walletAddress}
+            walletClient={walletClient}
+            isMarketSelectOpen={modals.isMarketSelectModalOpen}
+            onCloseMarketSelect={() => modals.setIsMarketSelectModalOpen(false)}
+            onSelectMarket={(m) => {
+              selectMarket(m.id);
+              setMobileTab("trade");
+            }}
+            isPnlOpen={modals.isPnlOpen}
+            onClosePnl={() => modals.setIsPnlOpen(false)}
+            pnlData={modals.pnlData}
+            isCopyOpen={modals.isCopyOpen}
+            onCloseCopy={modals.closeCopyModal}
+            copyIntentData={effectiveCopyIntent}
+            defaultTxHash={defaultTxHash}
+            onExecuteCopy={tradingActions.executeCopyTrade}
+            onCopyExecuted={handleCopyExecuted}
+            isFaucetOpen={modals.isFaucetOpen}
+            onCloseFaucet={() => modals.setIsFaucetOpen(false)}
+            onClaimSuccess={() => refetchBalance()}
+          />
+        );
+      })()}
     </div>
   );
 }

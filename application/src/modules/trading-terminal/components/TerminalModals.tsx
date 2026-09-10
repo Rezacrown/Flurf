@@ -29,6 +29,7 @@ interface TerminalModalsProps {
   isCopyOpen: boolean;
   onCloseCopy: () => void;
   copyIntentData: CopyIntentData | null;
+  defaultTxHash?: string | null;
   onExecuteCopy?: (intent: {
     side: MarketOutcome;
     price: number;
@@ -62,6 +63,7 @@ export const TerminalModals: React.FC<TerminalModalsProps> = ({
   isCopyOpen,
   onCloseCopy,
   copyIntentData,
+  defaultTxHash,
   onExecuteCopy,
   onCopyExecuted,
   isFaucetOpen,
@@ -92,6 +94,7 @@ export const TerminalModals: React.FC<TerminalModalsProps> = ({
         walletAddress={walletAddress}
         walletClient={walletClient}
         initialIntent={copyIntentData}
+        defaultTxHash={defaultTxHash}
         onExecuteCopy={onExecuteCopy}
         onCopyExecuted={onCopyExecuted}
       />

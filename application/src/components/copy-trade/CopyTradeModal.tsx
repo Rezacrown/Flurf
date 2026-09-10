@@ -39,6 +39,7 @@ interface CopyTradeModalProps {
   walletAddress?: string | null;
   walletClient?: WalletClient | null;
   initialIntent?: CopyIntentData | null;
+  defaultTxHash?: string | null;
   onExecuteCopy?: (intent: {
     side: MarketOutcome;
     price: number;
@@ -62,6 +63,7 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
   walletAddress,
   walletClient,
   initialIntent,
+  defaultTxHash,
   onExecuteCopy,
   onCopyExecuted,
 }) => {
@@ -80,6 +82,7 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
   );
 
   const traderAddress = initialIntent?.traderAddress || walletAddress || "0x0000000000000000000000000000000000000000";
+  const leaderTxHash = initialIntent?.txHash || defaultTxHash || null;
   const side: MarketOutcome = initialIntent?.side || "YES";
   const leaderPrice = initialIntent?.leaderPrice || market.bestAsk || 0.5;
   const currentPrice = clampProbabilityPrice(
@@ -140,7 +143,7 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
   const origin = typeof window !== "undefined" ? window.location.origin : "https://flurf.trade";
   const shareUrl = `${origin}/app?copy=true&marketId=${market.id}&symbol=${encodeURIComponent(
     market.symbol
-  )}&side=${side}&price=${leaderPrice}&trader=${traderAddress}&tx=${initialIntent?.txHash || ""}`;
+  )}&side=${side}&price=${leaderPrice}&trader=${traderAddress}${leaderTxHash ? `&tx=${leaderTxHash}` : ""}`;
 
   const handleCopyLink = async () => {
     try {
@@ -198,9 +201,20 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium hover:underline font-mono"
               >
-                View Transaction on Somnia Shannon Explorer
+                View Your Copy Tx on Somnia Shannon Explorer
                 <ExternalLink className="size-3" />
               </a>
+              {leaderTxHash && (
+                <a
+                  href={`https://shannon-explorer.somnia.network/tx/${leaderTxHash}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-mono"
+                >
+                  View Original Leader Tx ({leaderTxHash.slice(0, 6)}...{leaderTxHash.slice(-4)})
+                  <ExternalLink className="size-2.5" />
+                </a>
+              )}
               <Button onClick={handleReset} className="mt-2 rounded-xl text-xs w-full h-10 font-semibold">
                 Done
               </Button>
@@ -208,37 +222,93 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
           </div>
         ) : (
           <div className="space-y-4 my-2">
-            {/* Master Trader Verification Card */}
-            <div className="rounded-2xl border border-border/70 bg-secondary/30 p-3.5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="size-9 rounded-full bg-gradient-to-tr from-violet-600 to-fuchsia-600 flex items-center justify-center text-white font-bold text-xs shadow-xs">
-                  FL
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-xs font-bold text-foreground">
-                      {traderAddress.slice(0, 6)}...{traderAddress.slice(-4)}
-                    </span>
-                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-violet-500/40 text-violet-500">
-                      Verified
-                    </Badge>
+            {/* Master Trader Verification & On-Chain Proof Card */}
+            <div className="rounded-2xl border border-border/70 bg-secondary/30 p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="size-9 rounded-full bg-gradient-to-tr from-violet-600 to-fuchsia-600 flex items-center justify-center text-white font-bold text-xs shadow-xs">
+                    FL
                   </div>
-                  <span className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                    <UserCheck className="size-3 text-emerald-500" />
-                    Verified On-Chain · Somnia Shannon
-                  </span>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <a
+                        href={`https://shannon-explorer.somnia.network/address/${traderAddress}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-xs font-bold text-foreground hover:underline inline-flex items-center gap-1 group"
+                        title="View trader address on Somnia Shannon Explorer"
+                      >
+                        <span>{traderAddress.slice(0, 6)}...{traderAddress.slice(-4)}</span>
+                        <ExternalLink className="size-2.5 opacity-50 group-hover:opacity-100 transition-opacity" />
+                      </a>
+                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-violet-500/40 text-violet-500 font-semibold">
+                        Verified
+                      </Badge>
+                    </div>
+                    <span className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                      <UserCheck className="size-3 text-emerald-500" />
+                      Verified On-Chain · Somnia Shannon
+                    </span>
+                  </div>
                 </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyLink}
+                  className="rounded-xl text-xs h-8 px-3 cursor-pointer shrink-0"
+                >
+                  {copiedLink ? <Check className="size-3 text-emerald-500 mr-1" /> : <Copy className="size-3 mr-1" />}
+                  {copiedLink ? "Link Copied" : "Share Link"}
+                </Button>
               </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCopyLink}
-                className="rounded-xl text-xs h-8 px-3"
-              >
-                {copiedLink ? <Check className="size-3 text-emerald-500 mr-1" /> : <Copy className="size-3 mr-1" />}
-                {copiedLink ? "Link Copied" : "Share Link"}
-              </Button>
+              {/* On-Chain Transaction Hash Verification Box */}
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 flex items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="size-6 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block leading-tight">
+                      Trader Tx Hash (On-Chain Proof)
+                    </span>
+                    {leaderTxHash ? (
+                      <span className="font-mono text-xs font-semibold text-foreground truncate block" title={leaderTxHash}>
+                        {leaderTxHash.slice(0, 10)}...{leaderTxHash.slice(-8)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground font-mono">
+                        Explorer Activity Verified
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {leaderTxHash ? (
+                  <a
+                    href={`https://shannon-explorer.somnia.network/tx/${leaderTxHash}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 text-xs font-semibold shadow-xs transition-colors shrink-0 cursor-pointer"
+                    title="View & verify this exact transaction on Somnia Explorer"
+                  >
+                    <span>Verify Tx</span>
+                    <ExternalLink className="size-3" />
+                  </a>
+                ) : (
+                  <a
+                    href={`https://shannon-explorer.somnia.network/address/${traderAddress}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground text-xs font-medium transition-colors shrink-0 cursor-pointer"
+                    title="View trader account on Somnia Explorer"
+                  >
+                    <span>Check Explorer</span>
+                    <ExternalLink className="size-3" />
+                  </a>
+                )}
+              </div>
             </div>
 
             {/* Shareable Link Box */}
@@ -260,7 +330,7 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
                   size="sm"
                   variant="outline"
                   onClick={handleCopyLink}
-                  className="h-8 text-xs px-3 shrink-0 rounded-xl font-medium"
+                  className="h-8 text-xs px-3 shrink-0 rounded-xl font-medium cursor-pointer"
                 >
                   {copiedLink ? <Check className="size-3 text-emerald-500 mr-1" /> : <Copy className="size-3 mr-1" />}
                   {copiedLink ? "Copied" : "Copy"}
@@ -299,6 +369,22 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
                 <span className="text-muted-foreground font-sans">Current Best Ask:</span>
                 <span className="font-semibold text-foreground">${currentPrice.toFixed(2)}</span>
               </div>
+
+              {leaderTxHash && (
+                <div className="flex justify-between items-center font-mono pt-1">
+                  <span className="text-muted-foreground font-sans">Verified Tx Hash:</span>
+                  <a
+                    href={`https://shannon-explorer.somnia.network/tx/${leaderTxHash}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-semibold hover:underline"
+                    title="Inspect transaction on Somnia Explorer"
+                  >
+                    <span>{leaderTxHash.slice(0, 6)}...{leaderTxHash.slice(-4)}</span>
+                    <ExternalLink className="size-2.5" />
+                  </a>
+                </div>
+              )}
 
               <div className="flex justify-between items-center pt-2 border-t border-border/40">
                 <span className="font-medium text-foreground">Slippage Guard Status:</span>

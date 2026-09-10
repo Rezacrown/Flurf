@@ -16,7 +16,7 @@ export function useCopyTradeIntent(selectedMarket: BinaryMarket | null) {
   const copySideParam = searchParams.get("side");
   const copyPriceParam = searchParams.get("price");
   const copyTraderParam = searchParams.get("trader");
-  const copyTxParam = searchParams.get("tx");
+  const copyTxParam = searchParams.get("tx") || searchParams.get("txHash");
 
   const copyIntentData = useMemo<CopyIntentData | null>(() => {
     if (!isCopyParam) return null;

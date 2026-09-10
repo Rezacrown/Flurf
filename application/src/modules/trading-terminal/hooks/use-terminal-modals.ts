@@ -5,6 +5,7 @@ import { useState } from "react";
 
 // 2. Types
 import type { PnlShareData, UserPosition } from "@/domain/types";
+import type { CopyIntentData } from "@/components/copy-trade/CopyTradeModal";
 
 interface UseTerminalModalsOptions {
   isCopyParamDefault?: boolean;
@@ -17,6 +18,7 @@ export function useTerminalModals(options: UseTerminalModalsOptions = {}) {
   const [isPnlOpen, setIsPnlOpen] = useState(false);
   const [pnlData, setPnlData] = useState<PnlShareData | null>(null);
   const [isCopyOpen, setIsCopyOpen] = useState<boolean>(() => isCopyParamDefault);
+  const [activeCopyIntent, setActiveCopyIntent] = useState<CopyIntentData | null>(null);
   const [isFaucetOpen, setIsFaucetOpen] = useState(false);
   const [isMarketSelectModalOpen, setIsMarketSelectModalOpen] = useState(false);
 
@@ -36,8 +38,27 @@ export function useTerminalModals(options: UseTerminalModalsOptions = {}) {
     setIsPnlOpen(true);
   };
 
-  const openCopyModal = () => setIsCopyOpen(true);
-  const closeCopyModal = () => setIsCopyOpen(false);
+  const openCopyModal = (intentOrPos?: CopyIntentData | UserPosition | null) => {
+    if (intentOrPos) {
+      if ("traderAddress" in intentOrPos) {
+        setActiveCopyIntent(intentOrPos as CopyIntentData);
+      } else {
+        const pos = intentOrPos as UserPosition;
+        setActiveCopyIntent({
+          traderAddress: walletAddress || "",
+          side: pos.outcome,
+          leaderPrice: pos.avgEntryPrice,
+          txHash: (pos.txHash as string) || "",
+        });
+      }
+    }
+    setIsCopyOpen(true);
+  };
+
+  const closeCopyModal = () => {
+    setIsCopyOpen(false);
+    setActiveCopyIntent(null);
+  };
 
   return {
     isPnlOpen,
@@ -46,6 +67,8 @@ export function useTerminalModals(options: UseTerminalModalsOptions = {}) {
     openPnlModal,
     isCopyOpen,
     setIsCopyOpen,
+    activeCopyIntent,
+    setActiveCopyIntent,
     openCopyModal,
     closeCopyModal,
     isFaucetOpen,

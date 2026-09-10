@@ -74,7 +74,7 @@ export function FaucetView() {
               errorMessage={errorMessage}
               copiedContract={copiedContract}
               onRefreshBalance={refreshBalance}
-              onClaim={handleClaimUSDC}
+              onClaim={() => handleClaimUSDC()}
               onCopyAddress={handleCopyAddress}
               flurfAddress={flurfAddress}
               onConnectWallet={connect}

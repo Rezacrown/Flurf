@@ -163,7 +163,7 @@ export const CollateralFaucetCard: React.FC<CollateralFaucetCardProps> = ({
           </Button>
         ) : (
           <Button
-            onClick={onClaim}
+            onClick={() => onClaim()}
             disabled={isMinting}
             className="w-full h-11 rounded-2xl bg-foreground text-background font-semibold text-xs hover:opacity-90 transition-all cursor-pointer shadow-md"
           >

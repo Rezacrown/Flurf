@@ -80,7 +80,7 @@ export function useFaucetClaim() {
     }
   }, [flurfAddress, refreshAllBalances]);
 
-  const handleClaimUSDC = async (targetOverride?: string) => {
+  const handleClaimUSDC = async (targetOverride?: unknown) => {
     setErrorMessage(null);
     setTxHash(null);
 
@@ -90,7 +90,13 @@ export function useFaucetClaim() {
       return null;
     }
 
-    const targetAddr = (targetOverride || recipientInput || flurfAddress).trim();
+    // Guard against React SyntheticEvent / MouseEvent being passed into onClaim
+    const rawTarget =
+      typeof targetOverride === "string" && targetOverride.trim().length > 0
+        ? targetOverride
+        : recipientInput || flurfAddress;
+
+    const targetAddr = (rawTarget || "").trim();
     if (!isAddress(targetAddr)) {
       setErrorMessage("Please enter a valid EVM wallet address (0x...)");
       return null;

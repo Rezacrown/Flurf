@@ -4,6 +4,7 @@ import React, { forwardRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { TrendingUp, TrendingDown, ShieldCheck, Zap } from "lucide-react";
 import { PnlShareData } from "@/domain/types";
+import { getAppDisplayDomain } from "@/lib/base-url";
 
 export const PnlCard = forwardRef<HTMLDivElement, PnlShareData>(
   (
@@ -21,6 +22,7 @@ export const PnlCard = forwardRef<HTMLDivElement, PnlShareData>(
     ref
   ) => {
     const isProfit = roiPercent >= 0;
+    const displayDomain = getAppDisplayDomain();
 
     return (
       <div
@@ -139,7 +141,7 @@ export const PnlCard = forwardRef<HTMLDivElement, PnlShareData>(
             </div>
             <div className="text-[9px] text-slate-500">{timestamp}</div>
             <div className="text-[8px] text-slate-400 font-semibold tracking-wider uppercase">
-              Trade Predictions on flurf.trade
+              Trade Predictions on {displayDomain}
             </div>
           </div>
 

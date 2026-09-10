@@ -14,3 +14,10 @@ export function getAppBaseUrl(): string {
   }
   return "https://flurf.trade";
 }
+
+/**
+ * Helper to get clean display domain without protocol (e.g. "flurf.trade", "flurf.vercel.app", "localhost:3000")
+ */
+export function getAppDisplayDomain(): string {
+  return getAppBaseUrl().replace(/^https?:\/\//, "").replace(/\/$/, "");
+}

@@ -4,6 +4,7 @@ import React from "react";
 import { Check, ShieldCheck, Sparkles, TrendingUp, Zap, ArrowUpRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getAppDisplayDomain } from "@/lib/base-url";
 
 interface FeaturesSectionProps {
   onOpenTrade: () => void;
@@ -161,7 +162,7 @@ export const FeaturesSection: React.FC<FeaturesSectionProps> = ({
                 </div>
                 <div className="flex items-center justify-between border-t border-slate-800 pt-2 text-[10px] text-slate-400">
                   <span>Trader: 0x71C...89A4</span>
-                  <span className="text-violet-300 font-semibold">flurf.trade</span>
+                  <span className="text-violet-300 font-semibold">{getAppDisplayDomain()}</span>
                 </div>
                 <Button
                   size="sm"

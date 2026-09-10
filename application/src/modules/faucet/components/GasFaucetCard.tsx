@@ -128,7 +128,7 @@ export const GasFaucetCard: React.FC<GasFaucetCardProps> = ({
 
           {/* Option 2: Telegram Developer Community Group */}
           <a
-            href="https://t.me/Somnia_Network"
+            href="https://t.me/+XHq0F0JXMyhmMzM0"
             target="_blank"
             rel="noreferrer"
             className="group flex items-center justify-between p-3 rounded-2xl border border-blue-500/30 bg-blue-50/40 dark:bg-blue-950/20 hover:bg-blue-50/80 dark:hover:bg-blue-950/40 transition-all cursor-pointer shadow-xs"
@@ -139,13 +139,13 @@ export const GasFaucetCard: React.FC<GasFaucetCardProps> = ({
               </div>
               <div className="text-left">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-semibold text-foreground">Somnia Telegram Group</span>
+                  <span className="text-xs font-semibold text-foreground">Somnia Telegram Faucet</span>
                   <Badge variant="outline" className="text-[9px] py-0 px-1 border-blue-500/40 text-blue-600 dark:text-blue-400 bg-blue-100/50 dark:bg-blue-950/50">
-                    Community & DevRel
+                    Official Faucet Group
                   </Badge>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  t.me/Somnia_Network: Ask DevRel for testnet gas & support
+                  Join hackathon group to claim STT testnet gas directly
                 </p>
               </div>
             </div>

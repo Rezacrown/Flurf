@@ -13,9 +13,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-// 4. Types
+// 4. Types & Utils
 import type { WalletClient } from "viem";
 import type { UserPosition, OpenOrder, SettledPosition, TradeHistoryItem, MarketOutcome } from "@/domain/types";
+import { getAppBaseUrl } from "@/lib/base-url";
 
 // ---------------------------------------------------------------------------
 // Real-Time Expiry Countdown Component
@@ -139,7 +140,7 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
   };
 
   const handleCopyTradeLink = async (pos: UserPosition) => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://flurf.trade";
+    const origin = getAppBaseUrl();
     const shareUrl = `${origin}/app?copy=true&marketId=${pos.marketId}&symbol=${encodeURIComponent(
       pos.symbol
     )}&side=${pos.outcome}&price=${pos.avgEntryPrice}&trader=${walletAddress || ""}&tx=${pos.txHash || ""}`;
@@ -157,7 +158,7 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
   };
 
   const handleCopyOrderLink = async (ord: OpenOrder) => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://flurf.trade";
+    const origin = getAppBaseUrl();
     const sideClean = (ord.side.includes("YES") ? "YES" : "NO") as MarketOutcome;
     const shareUrl = `${origin}/app?copy=true&marketId=${encodeURIComponent(
       ord.symbol || ""

@@ -11,8 +11,9 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-// 4. Types
+// 4. Types & Utils
 import type { BinaryMarket } from "@/domain/types";
+import { getAppBaseUrl } from "@/lib/base-url";
 
 interface MarketInfoBarProps {
   market: BinaryMarket;
@@ -24,7 +25,7 @@ export const MarketInfoBar: React.FC<MarketInfoBarProps> = ({ market, onOpenMark
   const [timeLeft, setTimeLeft] = useState<string>("14m 22s");
 
   const handleShareMarket = async () => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://flurf.trade";
+    const origin = getAppBaseUrl();
     const shareUrl = `${origin}/app?copy=true&marketId=${market.id}&symbol=${encodeURIComponent(market.symbol)}`;
     try {
       await navigator.clipboard.writeText(shareUrl);

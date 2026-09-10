@@ -23,6 +23,7 @@ import {
   clampProbabilityPrice,
   formatReturnString,
 } from "@/domain/pnl-calculator";
+import { getAppBaseUrl } from "@/lib/base-url";
 
 export interface CopyIntentData {
   traderAddress: string;
@@ -140,7 +141,7 @@ export const CopyTradeModal: React.FC<CopyTradeModalProps> = ({
     }
   };
 
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://flurf.trade";
+  const origin = getAppBaseUrl();
   const shareUrl = `${origin}/app?copy=true&marketId=${market.id}&symbol=${encodeURIComponent(
     market.symbol
   )}&side=${side}&price=${leaderPrice}&trader=${traderAddress}${leaderTxHash ? `&tx=${leaderTxHash}` : ""}`;

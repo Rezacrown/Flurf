@@ -3,9 +3,10 @@
 // 1. Core Framework
 import { useState } from "react";
 
-// 2. Types
+// 2. Types & Utils
 import type { PnlShareData, UserPosition } from "@/domain/types";
 import type { CopyIntentData } from "@/components/copy-trade/CopyTradeModal";
+import { getAppBaseUrl } from "@/lib/base-url";
 
 interface UseTerminalModalsOptions {
   isCopyParamDefault?: boolean;
@@ -24,6 +25,9 @@ export function useTerminalModals(options: UseTerminalModalsOptions = {}) {
 
   const openPnlModal = (pos: UserPosition) => {
     const profit = pos.currentValue - pos.investedAmount;
+    const origin = getAppBaseUrl();
+    const referralUrl = `${origin}/app?market=${encodeURIComponent(pos.marketId || "")}&copy=true&symbol=${encodeURIComponent(pos.symbol || "")}&side=${pos.outcome}&price=${pos.avgEntryPrice}&trader=${walletAddress || ""}&tx=${pos.txHash || ""}`;
+
     setPnlData({
       marketQuestion: pos.question,
       outcome: pos.outcome,
@@ -33,7 +37,7 @@ export function useTerminalModals(options: UseTerminalModalsOptions = {}) {
       currentPrice: `${Math.round(pos.currentPrice * 100)}¢`,
       walletAddress: walletAddress || "",
       timestamp: new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC",
-      referralUrl: `https://flurf.trade/copy?symbol=${encodeURIComponent(pos.symbol)}`,
+      referralUrl,
     });
     setIsPnlOpen(true);
   };

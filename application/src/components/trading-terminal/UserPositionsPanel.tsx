@@ -254,11 +254,16 @@ export const UserPositionsPanel: React.FC<UserPositionsPanelProps> = ({
         {/* --- TAB 1: POSITIONS (ERC-6909) --- */}
         <TabsContent value="positions" className="m-0">
           {positions.length === 0 ? (
-            <div className="py-8 text-center text-xs text-muted-foreground flex flex-col items-center gap-2">
-              <div className="size-10 rounded-full bg-secondary/80 flex items-center justify-center text-lg">
-                📊
-              </div>
-              <span>No active outcome positions. Place a buy order or mint sets above!</span>
+            <div className="py-8 text-center text-xs text-muted-foreground flex flex-col items-center gap-2.5">
+              <img
+                src="/flurf-mascot.png"
+                alt="Flurf Mascot"
+                className="size-14 rounded-2xl object-cover border border-emerald-500/25 shadow-md"
+              />
+              <span className="font-medium text-foreground">No active outcome positions yet</span>
+              <span className="text-[11px] text-muted-foreground max-w-xs">
+                Pick a market in the terminal above to place your first YES or NO prediction!
+              </span>
             </div>
           ) : (
             <>

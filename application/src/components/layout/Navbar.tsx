@@ -59,7 +59,12 @@ export const Navbar: React.FC<NavbarProps> = ({ fluid, onConnectWallet }) => {
       >
         {/* Left: Brand Name */}
         <div className="flex items-center shrink-0">
-          <Link href="/" className="flex items-center gap-2 group">
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <img
+              src="/flurf-mascot.png"
+              alt="Flurf Mascot"
+              className="size-8 sm:size-9 rounded-full object-cover border border-emerald-500/30 shadow-sm group-hover:scale-105 transition-transform"
+            />
             <span className="font-serif text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-foreground">
               Flurf
             </span>

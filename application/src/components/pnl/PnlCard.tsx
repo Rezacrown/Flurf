@@ -51,12 +51,12 @@ export const PnlCard = forwardRef<HTMLDivElement, PnlShareData>(
         {/* HEADER */}
         <div className="relative z-10 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-tr from-violet-600 via-fuchsia-500 to-cyan-400 p-[1px] shadow-lg shadow-violet-500/20">
-              <div className="flex h-full w-full items-center justify-center rounded-[11px] bg-[#0c101d]">
-                <span className="text-base font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-violet-300 to-fuchsia-300 font-serif">
-                  F
-                </span>
-              </div>
+            <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 p-[1px] shadow-lg shadow-emerald-500/20 overflow-hidden shrink-0">
+              <img
+                src="/flurf-mascot.png"
+                alt="Flurf"
+                className="h-full w-full rounded-[11px] object-cover"
+              />
             </div>
             <div>
               <div className="flex items-center gap-1.5">

@@ -23,10 +23,15 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           {/* Left Column: Editorial Headline & Beginner Copy */}
           <div className="flex flex-col items-start lg:col-span-6 xl:col-span-6">
             {/* Pill Announcement */}
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-secondary/50 px-3.5 py-1 text-xs font-medium text-foreground backdrop-blur-sm transition-colors hover:bg-secondary">
-              <span className="font-semibold text-xs text-foreground/80">NEW</span>
+            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-secondary/50 pl-1.5 pr-3.5 py-1 text-xs font-medium text-foreground backdrop-blur-sm transition-colors hover:bg-secondary">
+              <img
+                src="/flurf-mascot.png"
+                alt="Flurf"
+                className="size-5 rounded-full object-cover border border-emerald-500/40"
+              />
+              <span className="font-semibold text-xs text-foreground/80">Flurf</span>
               <span className="size-1 rounded-full bg-border" />
-              <span>1-Click Copy Trading is now live on Somnia</span>
+              <span>1-Click Copy Trading on Somnia &amp; DreamDEX</span>
               <ArrowRight className="size-3 text-muted-foreground" />
             </div>
 
@@ -166,6 +171,24 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                     >
                       Trade
                     </Button>
+                  </div>
+
+                  {/* Floating Mascot Companion Badge */}
+                  <div className="absolute -bottom-3 -right-3 sm:-bottom-4 sm:-right-4 z-20 flex items-center gap-2.5 rounded-2xl border border-border/80 bg-white/95 dark:bg-card/95 p-2 pr-3.5 shadow-xl backdrop-blur-md">
+                    <img
+                      src="/flurf-mascot.png"
+                      alt="Flurf Mascot"
+                      className="size-9 rounded-xl object-cover border border-emerald-500/30"
+                    />
+                    <div className="text-left">
+                      <div className="flex items-center gap-1.5">
+                        <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                          Flurf
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-semibold text-foreground block">Live Prediction Engine</span>
+                    </div>
                   </div>
                 </div>
               </div>
